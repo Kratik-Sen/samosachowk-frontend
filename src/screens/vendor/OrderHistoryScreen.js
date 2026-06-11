@@ -9,6 +9,7 @@ import { API_URL, useAuth } from '../../context/AuthContext';
 import { createTrackingSocket } from '../../utils/socket';
 import { getCurrentVendorLocation } from '../../utils/vendorLocation';
 import { estimateRouteInfo } from '../../utils/routeMetrics';
+import { canRenderNativeMap, nativeMapSetupMessage } from '../../utils/nativeMaps';
 
 const toCoordinate = (location) => {
   const latitude = Number(location?.lat);
@@ -191,6 +192,16 @@ const OrderHistoryScreen = () => {
       );
     }
 
+    if (!canRenderNativeMap) {
+      return (
+        <View style={styles.trackingBox}>
+          <Text style={styles.trackingTitle}>Native map setup required</Text>
+          <Text style={styles.trackingText}>{nativeMapSetupMessage}</Text>
+          {renderRouteInfo()}
+        </View>
+      );
+    }
+
     const maps = require('react-native-maps');
     const MapView = maps.default;
     const Marker = maps.Marker;
@@ -207,7 +218,14 @@ const OrderHistoryScreen = () => {
     return (
       <>
         <View style={styles.mapWrap}>
-          <MapView style={styles.map} initialRegion={region} region={region}>
+          <MapView
+            style={styles.map}
+            initialRegion={region}
+            region={region}
+            toolbarEnabled={false}
+            moveOnMarkerPress={false}
+            loadingEnabled
+          >
             <Marker coordinate={vendorCoordinate} title="Vendor outlet" description={vendorLocation?.location} />
             {deliveryCoordinate && (
               <>

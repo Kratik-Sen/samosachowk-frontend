@@ -36,6 +36,10 @@ const statusColors = {
   'In Progress': colors.amber,
 };
 
+const metricCardShadow = {
+  boxShadow: `0 6px 12px ${colors.shadow}`,
+};
+
 export const AppScreen = ({ children }) => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -443,10 +447,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minHeight: 122,
     padding: 14,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    ...metricCardShadow,
   },
   metricIcon: {
     alignItems: 'center',

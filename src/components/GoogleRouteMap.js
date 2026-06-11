@@ -58,14 +58,33 @@ const getRouteErrorHelp = (message = '') => {
     normalized.includes('rejected') ||
     normalized.includes('referrer')
   ) {
-    return 'Allow this panel URL in your Google API key HTTP referrers and include Directions API in API restrictions.';
+    return 'Allow this panel URL in your Google API key HTTP referrers and include Routes API in API restrictions.';
   }
 
   if (normalized.includes('tiles did not load')) {
     return 'Check the browser console for Google Maps errors, then verify billing, referrer restrictions, and API restrictions.';
   }
 
-  return 'Enable Maps JavaScript API and Directions API in the same Google Cloud project.';
+  return 'Enable Maps JavaScript API and Routes API in the same Google Cloud project.';
+};
+
+const getRouteWarningMessage = (message = '') => {
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes('permission_denied') ||
+    normalized.includes('routes_compute_routes') ||
+    normalized.includes('routes api') ||
+    normalized.includes('disabled')
+  ) {
+    return 'Road route is unavailable because Routes API is not enabled. Showing an estimated route.';
+  }
+
+  if (normalized.includes('quota') || normalized.includes('billing')) {
+    return 'Road route is unavailable because Google route billing or quota needs attention. Showing an estimated route.';
+  }
+
+  return 'Road route is unavailable. Showing an estimated route.';
 };
 
 const getCurrentOrigin = () => {
@@ -77,6 +96,90 @@ const getCurrentOrigin = () => {
 };
 
 const GOOGLE_MAPS_DEMO_MAP_ID = 'DEMO_MAP_ID';
+
+const getLocalizedText = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return value.text || value.localizedText || '';
+};
+
+const formatDistanceMeters = (distanceMeters) => {
+  if (!Number.isFinite(distanceMeters)) {
+    return '';
+  }
+
+  if (distanceMeters < 1000) {
+    return `${Math.max(1, Math.round(distanceMeters))} m`;
+  }
+
+  const distanceKm = distanceMeters / 1000;
+  return `${distanceKm < 10 ? distanceKm.toFixed(1) : Math.round(distanceKm)} km`;
+};
+
+const formatDurationSeconds = (durationSeconds) => {
+  if (!Number.isFinite(durationSeconds)) {
+    return '';
+  }
+
+  const minutes = Math.max(1, Math.round(durationSeconds / 60));
+
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+
+  return remainder ? `${hours} hr ${remainder} min` : `${hours} hr`;
+};
+
+const parseDurationSeconds = (duration) => {
+  if (typeof duration === 'number') {
+    return duration;
+  }
+
+  if (typeof duration === 'string') {
+    const match = duration.match(/^([\d.]+)s$/);
+    return match ? Number(match[1]) : NaN;
+  }
+
+  return NaN;
+};
+
+const getRouteInfo = (route, fallback) => {
+  const routeLeg = route?.legs?.[0];
+  const localizedValues = routeLeg?.localizedValues || {};
+  const durationValue = routeLeg?.duration || routeLeg?.staticDuration;
+
+  return {
+    distanceText:
+      getLocalizedText(localizedValues.distance) ||
+      getLocalizedText(routeLeg?.distance) ||
+      formatDistanceMeters(routeLeg?.distanceMeters) ||
+      fallback?.distanceText ||
+      '',
+    durationText:
+      getLocalizedText(localizedValues.duration) ||
+      getLocalizedText(localizedValues.staticDuration) ||
+      getLocalizedText(durationValue) ||
+      formatDurationSeconds(parseDurationSeconds(durationValue)) ||
+      fallback?.durationText ||
+      '',
+    isEstimate: !routeLeg,
+  };
+};
+
+const getRouteLegLocation = (routeLeg, camelKey, snakeKey) => {
+  const location = routeLeg?.[camelKey] || routeLeg?.[snakeKey];
+
+  return location?.latLng || location?.location || location || null;
+};
 
 const loadGoogleMaps = (apiKey) => {
   if (typeof window === 'undefined') {
@@ -137,9 +240,9 @@ const loadGoogleMaps = (apiKey) => {
 
 const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
   const mapRef = useRef(null);
-  const rendererRef = useRef(null);
   const hasLoadedMapRef = useRef(false);
   const [routeError, setRouteError] = useState('');
+  const [routeWarning, setRouteWarning] = useState('');
   const [routeInfo, setRouteInfo] = useState(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const config = useApiResource('/config/public', {
@@ -175,6 +278,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
 
     const handleAuthError = (event) => {
       setRouteError(event.detail?.message || `Google Maps rejected ${getCurrentOrigin()}`);
+      setRouteWarning('');
       setRouteInfo(null);
       hasLoadedMapRef.current = false;
       setIsMapReady(false);
@@ -193,24 +297,44 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
     }
 
     let isMounted = true;
-    let map = null;
-    let cleanupMap = () => {};
     let markers = [];
+    let routePolylines = [];
+    let tileTimeout = null;
+    let tileListener = null;
+    let cleanupMap = () => {
+      clearTimeout(tileTimeout);
+      if (tileListener?.remove) tileListener.remove();
+      routePolylines.forEach((polyline) => {
+        polyline.setMap(null);
+      });
+      markers.forEach((marker) => {
+        marker.map = null;
+      });
+      routePolylines = [];
+      markers = [];
+    };
 
     const initMap = async () => {
       try {
         setRouteError('');
+        setRouteWarning('');
         setRouteInfo(null);
         const isInitialMapLoad = !hasLoadedMapRef.current;
         if (isInitialMapLoad) {
           setIsMapReady(false);
         }
         const maps = await loadGoogleMaps(googleMapsApiKey);
-        const [{ Map }, { AdvancedMarkerElement, PinElement }, { DirectionsRenderer, DirectionsService }] = await Promise.all([
+        const [mapsLibrary, coreLibrary, markerLibrary, routesLibrary] = await Promise.all([
           maps.importLibrary('maps'),
+          maps.importLibrary('core'),
           maps.importLibrary('marker'),
           maps.importLibrary('routes'),
         ]);
+        const { Map, Polyline: MapsPolyline } = mapsLibrary;
+        const { LatLngBounds } = coreLibrary;
+        const { AdvancedMarkerElement, PinElement } = markerLibrary;
+        const { Route } = routesLibrary;
+        const Polyline = MapsPolyline || maps.Polyline;
 
         if (!isMounted || !mapRef.current) {
           return;
@@ -225,7 +349,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
             }
           : vendorCoord;
 
-        map = new Map(mapRef.current, {
+        const map = new Map(mapRef.current, {
           center,
           zoom: deliveryCoord ? 13 : 15,
           fullscreenControl: false,
@@ -234,30 +358,64 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
           streetViewControl: false,
         });
 
-        const createMarker = ({ position, title, glyph, background, borderColor }) => {
+        const fitMapToPoints = (points) => {
+          const validPoints = points.filter(Boolean);
+
+          if (!validPoints.length) {
+            return;
+          }
+
+          if (validPoints.length === 1) {
+            map.setCenter(validPoints[0]);
+            return;
+          }
+
+          const bounds = new LatLngBounds();
+          validPoints.forEach((point) => bounds.extend(point));
+          map.fitBounds(bounds);
+        };
+
+        const drawEstimatedRoute = () => {
+          if (!deliveryCoord || !vendorCoord || !Polyline) {
+            fitMapToPoints([deliveryCoord, vendorCoord]);
+            return;
+          }
+
+          const fallbackPolyline = new Polyline({
+            map,
+            path: [deliveryCoord, vendorCoord],
+            strokeColor: colors.red,
+            strokeOpacity: 0.55,
+            strokeWeight: 4,
+          });
+          routePolylines.push(fallbackPolyline);
+          fitMapToPoints([deliveryCoord, vendorCoord]);
+        };
+
+        const createMarker = ({ position, title, glyphText, background, borderColor }) => {
           const pin = new PinElement({
             background,
             borderColor,
-            glyph,
             glyphColor: colors.white,
+            glyphText,
           });
           const marker = new AdvancedMarkerElement({
             map,
             position,
             title,
-            content: pin.element,
           });
+          marker.appendChild(pin);
           markers.push(marker);
           return marker;
         };
 
-        const tileTimeout = isInitialMapLoad ? setTimeout(() => {
+        tileTimeout = isInitialMapLoad ? setTimeout(() => {
           if (isMounted && !hasLoadedMapRef.current) {
             setRouteError(`Google map tiles did not load for ${getCurrentOrigin()}`);
           }
         }, 9000) : null;
 
-        const tileListener = maps.event.addListenerOnce(map, 'tilesloaded', () => {
+        tileListener = maps.event.addListenerOnce(map, 'tilesloaded', () => {
           clearTimeout(tileTimeout);
           if (isMounted) {
             hasLoadedMapRef.current = true;
@@ -269,7 +427,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
         const vendorMarker = createMarker({
           position: vendorCoord,
           title: 'Vendor outlet',
-          glyph: 'V',
+          glyphText: 'V',
           background: colors.red,
           borderColor: colors.redDark,
         });
@@ -278,58 +436,68 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
           ? createMarker({
               position: deliveryCoord,
               title: 'Delivery boy',
-              glyph: 'D',
+              glyphText: 'D',
               background: colors.blue,
               borderColor: colors.ink,
             })
           : null;
 
-        let directionsRenderer = null;
-
         if (canRoute) {
-          const directionsService = new DirectionsService();
-          directionsRenderer = new DirectionsRenderer({
-            map,
-            suppressMarkers: true,
-            polylineOptions: {
-              strokeColor: colors.red,
-              strokeOpacity: 0.95,
-              strokeWeight: 5,
-            },
-          });
-          rendererRef.current = directionsRenderer;
-
           try {
-            const result = await directionsService.route({
+            const { routes } = await Route.computeRoutes({
               origin,
               destination,
-              travelMode: maps.TravelMode.DRIVING,
+              travelMode: 'DRIVING',
+              fields: ['path', 'legs'],
             });
+            const route = routes?.[0];
+
+            if (!route) {
+              throw new Error('No route found between delivery boy and vendor.');
+            }
+
             if (isMounted) {
-              directionsRenderer.setDirections(result);
-              const routeLeg = result.routes?.[0]?.legs?.[0];
-              if (routeLeg?.end_location) {
-                vendorMarker.position = routeLeg.end_location;
+              routePolylines = route.createPolylines();
+              routePolylines.forEach((polyline) => {
+                if (polyline.setOptions) {
+                  polyline.setOptions({
+                    strokeColor: colors.red,
+                    strokeOpacity: 0.95,
+                    strokeWeight: 5,
+                  });
+                }
+                polyline.setMap(map);
+              });
+
+              if (route.path?.length) {
+                fitMapToPoints(route.path);
               }
-              if (!deliveryMarker && routeLeg?.start_location) {
+
+              const routeLeg = route.legs?.[0];
+              const endLocation = getRouteLegLocation(routeLeg, 'endLocation', 'end_location');
+              const startLocation = getRouteLegLocation(routeLeg, 'startLocation', 'start_location');
+
+              if (endLocation) {
+                vendorMarker.position = endLocation;
+              }
+              if (!deliveryMarker && startLocation) {
                 deliveryMarker = createMarker({
-                  position: routeLeg.start_location,
+                  position: startLocation,
                   title: 'Delivery boy',
-                  glyph: 'D',
+                  glyphText: 'D',
                   background: colors.blue,
                   borderColor: colors.ink,
                 });
               }
-              setRouteInfo({
-                distanceText: routeLeg?.distance?.text || estimatedRouteInfo?.distanceText || '',
-                durationText: routeLeg?.duration?.text || estimatedRouteInfo?.durationText || '',
-                isEstimate: !routeLeg?.duration?.text,
-              });
+              setRouteWarning('');
+              setRouteInfo(getRouteInfo(route, estimatedRouteInfo));
             }
           } catch (routeError) {
-            // Route failed; map still shows with vendor pin.
+            // Road routing can fail because Routes API is disabled. Keep the map usable with an estimate.
             if (isMounted) {
-              setRouteError(routeError.message || 'Google route is unavailable.');
+              drawEstimatedRoute();
+              setRouteInfo(estimatedRouteInfo);
+              setRouteWarning(getRouteWarningMessage(routeError.message));
             }
           }
         } else {
@@ -338,22 +506,12 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
             deliveryMarker = deliveryMarker || createMarker({
               position: deliveryCoord,
               title: 'Delivery boy',
-              glyph: 'D',
+              glyphText: 'D',
               background: colors.blue,
               borderColor: colors.ink,
             });
           }
         }
-
-        cleanupMap = () => {
-          clearTimeout(tileTimeout);
-          if (tileListener?.remove) tileListener.remove();
-          if (directionsRenderer) directionsRenderer.setMap(null);
-          markers.forEach((marker) => {
-            marker.map = null;
-          });
-          markers = [];
-        };
       } catch (error) {
         if (isMounted) {
           setRouteError(error.message || 'Google route is unavailable.');
@@ -408,7 +566,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
           },
         })}
         {!isMapReady && (
-          <View pointerEvents="none" style={styles.mapOverlay}>
+          <View style={styles.mapOverlay}>
             <Text style={styles.mapOverlayTitle}>
               {routeError ? 'Google map blocked' : 'Loading Google map'}
             </Text>
@@ -436,6 +594,9 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
           )}
         </Text>
         {!!status && <Text style={styles.status}>{status}</Text>}
+        {!!routeWarning && !routeError && (
+          <Text style={styles.warning}>{routeWarning}</Text>
+        )}
         {!!routeError && (
           <Text style={styles.error}>
             {routeError}. {getRouteErrorHelp(routeError)}
@@ -467,6 +628,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.86)',
     justifyContent: 'center',
     padding: 18,
+    pointerEvents: 'none',
   },
   mapOverlayTitle: {
     color: colors.ink,
@@ -506,6 +668,13 @@ const styles = StyleSheet.create({
   },
   error: {
     color: colors.redDark,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  warning: {
+    color: colors.amber,
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 18,
