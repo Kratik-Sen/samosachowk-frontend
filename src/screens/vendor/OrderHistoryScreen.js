@@ -22,6 +22,8 @@ const toCoordinate = (location) => {
   return { latitude, longitude };
 };
 
+const ignoreMapIntent = () => {};
+
 const OrderHistoryScreen = () => {
   const { user } = useAuth();
   const orders = useApiResource('/vendors/orders', []);
@@ -206,6 +208,7 @@ const OrderHistoryScreen = () => {
     const MapView = maps.default;
     const Marker = maps.Marker;
     const Polyline = maps.Polyline;
+    const ProviderGoogle = maps.PROVIDER_GOOGLE;
     const region = deliveryCoordinate
       ? {
           latitude: (deliveryCoordinate.latitude + vendorCoordinate.latitude) / 2,
@@ -220,16 +223,30 @@ const OrderHistoryScreen = () => {
         <View style={styles.mapWrap}>
           <MapView
             style={styles.map}
+            provider={Platform.OS === 'android' ? ProviderGoogle : undefined}
             initialRegion={region}
             region={region}
             toolbarEnabled={false}
+            showsMyLocationButton={false}
+            showsPointsOfInterests={false}
+            onMarkerPress={ignoreMapIntent}
+            onPoiClick={ignoreMapIntent}
             moveOnMarkerPress={false}
             loadingEnabled
           >
-            <Marker coordinate={vendorCoordinate} title="Vendor outlet" description={vendorLocation?.location} />
+            <Marker
+              coordinate={vendorCoordinate}
+              title="Vendor outlet"
+              description={vendorLocation?.location}
+              onPress={ignoreMapIntent}
+            />
             {deliveryCoordinate && (
               <>
-                <Marker coordinate={deliveryCoordinate} title={trackedOrder.delivery_boy?.name || 'Delivery boy'} />
+                <Marker
+                  coordinate={deliveryCoordinate}
+                  title={trackedOrder.delivery_boy?.name || 'Delivery boy'}
+                  onPress={ignoreMapIntent}
+                />
                 <Polyline coordinates={[deliveryCoordinate, vendorCoordinate]} strokeColor={colors.red} strokeWidth={4} />
               </>
             )}

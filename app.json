@@ -32,6 +32,7 @@
       "package": "com.kratiksen.mobile"
     },
     "web": {
+      "bundler": "metro",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
