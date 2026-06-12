@@ -10,6 +10,7 @@ import { createTrackingSocket } from '../../utils/socket';
 import { getCurrentVendorLocation } from '../../utils/vendorLocation';
 import { estimateRouteInfo } from '../../utils/routeMetrics';
 import { canRenderNativeMap, nativeMapSetupMessage } from '../../utils/nativeMaps';
+import { useGoogleRoadRoute } from '../../hooks/useGoogleRoadRoute';
 
 const toCoordinate = (location) => {
   const latitude = Number(location?.lat);
@@ -41,7 +42,12 @@ const OrderHistoryScreen = () => {
   const deliveryCoordinate = toCoordinate(liveLocation);
   const vendorLocation = trackedOrder?.delivery_address || null;
   const vendorCoordinate = toCoordinate(vendorLocation);
-  const routeInfo = estimateRouteInfo(liveLocation, vendorLocation);
+  const nativeRoadRoute = useGoogleRoadRoute(
+    deliveryCoordinate,
+    vendorCoordinate,
+    Platform.OS !== 'web' && Boolean(deliveryCoordinate && vendorCoordinate)
+  );
+  const routeInfo = nativeRoadRoute.route?.routeInfo || estimateRouteInfo(liveLocation, vendorLocation);
   const canRenderMap = trackedOrder && (Platform.OS === 'web' ? vendorLocation : vendorCoordinate);
 
   useEffect(() => {
@@ -149,13 +155,17 @@ const OrderHistoryScreen = () => {
       return null;
     }
 
+    const isLoadingNativeRoute = nativeRoadRoute.isLoading && Platform.OS !== 'web' && !nativeRoadRoute.route;
+
     return (
       <View style={styles.routeInfo}>
         <Text style={styles.routeInfoTitle}>Time to vendor</Text>
         <Text style={styles.routeInfoText}>
-          {routeInfo ? (
+          {isLoadingNativeRoute ? (
+            'Loading road route...'
+          ) : routeInfo ? (
             <>
-              {`${routeInfo.durationText} est. (`}
+              {`${routeInfo.durationText}${routeInfo.isEstimate ? ' est.' : ''} (`}
               <Text style={styles.routeDistanceText}>{routeInfo.distanceText}</Text>
               {')'}
             </>
@@ -163,6 +173,9 @@ const OrderHistoryScreen = () => {
             'Waiting for delivery boy location to calculate ETA.'
           )}
         </Text>
+        {!!nativeRoadRoute.error && Platform.OS !== 'web' && (
+          <Text style={styles.routeWarning}>Road route unavailable. Showing estimated time.</Text>
+        )}
       </View>
     );
   };
@@ -209,6 +222,7 @@ const OrderHistoryScreen = () => {
     const Marker = maps.Marker;
     const Polyline = maps.Polyline;
     const ProviderGoogle = maps.PROVIDER_GOOGLE;
+    const roadRouteCoordinates = nativeRoadRoute.route?.coordinates || [];
     const region = deliveryCoordinate
       ? {
           latitude: (deliveryCoordinate.latitude + vendorCoordinate.latitude) / 2,
@@ -226,6 +240,8 @@ const OrderHistoryScreen = () => {
             provider={Platform.OS === 'android' ? ProviderGoogle : undefined}
             initialRegion={region}
             region={region}
+            mapType="standard"
+            userInterfaceStyle="light"
             toolbarEnabled={false}
             showsMyLocationButton={false}
             showsPointsOfInterests={false}
@@ -247,7 +263,9 @@ const OrderHistoryScreen = () => {
                   title={trackedOrder.delivery_boy?.name || 'Delivery boy'}
                   onPress={ignoreMapIntent}
                 />
-                <Polyline coordinates={[deliveryCoordinate, vendorCoordinate]} strokeColor={colors.red} strokeWidth={4} />
+                {roadRouteCoordinates.length > 1 && (
+                  <Polyline coordinates={roadRouteCoordinates} strokeColor={colors.red} strokeWidth={4} />
+                )}
               </>
             )}
           </MapView>
@@ -382,6 +400,13 @@ const styles = StyleSheet.create({
   routeDistanceText: {
     color: colors.red,
     fontWeight: '900',
+  },
+  routeWarning: {
+    color: colors.amber,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 18,
+    marginTop: 6,
   },
   message: {
     color: colors.redDark,

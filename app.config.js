@@ -39,6 +39,7 @@ module.exports = {
     },
     extra: {
       ...expo.extra,
+      googleMapsApiKey,
       googleMapsApiKeyConfigured: Boolean(googleMapsApiKey),
     },
   },

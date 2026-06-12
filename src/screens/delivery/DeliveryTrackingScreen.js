@@ -10,6 +10,7 @@ import { useApiResource } from '../../hooks/useApiResource';
 import { createTrackingSocket } from '../../utils/socket';
 import { estimateRouteInfo } from '../../utils/routeMetrics';
 import { canRenderNativeMap, nativeMapSetupMessage } from '../../utils/nativeMaps';
+import { useGoogleRoadRoute } from '../../hooks/useGoogleRoadRoute';
 
 const toCoordinate = (location) => {
   const latitude = Number(location?.lat ?? location?.latitude);
@@ -34,6 +35,17 @@ const DeliveryTrackingScreen = () => {
     () => (deliveries.data || []).find((delivery) => delivery.status !== 'Delivered'),
     [deliveries.data]
   );
+  const vendorLocation = activeRun?.order?.delivery_address || null;
+  const vendorCoordinate = toCoordinate(vendorLocation);
+  const deliveryCoordinate =
+    toCoordinate(activeRun?.current_location) ||
+    toCoordinate(localLocations[activeRun?._id]);
+  const nativeRoadRoute = useGoogleRoadRoute(
+    deliveryCoordinate,
+    vendorCoordinate,
+    Platform.OS !== 'web' && Boolean(deliveryCoordinate && vendorCoordinate)
+  );
+  const routeInfo = nativeRoadRoute.route?.routeInfo || estimateRouteInfo(deliveryCoordinate, vendorLocation);
 
   const applyLiveLocation = (deliveryId, location) => {
     if (!deliveryId || !location) {
@@ -209,19 +221,16 @@ const DeliveryTrackingScreen = () => {
   };
 
   const renderRouteMap = () => {
-    const vendorLocation = activeRun?.order?.delivery_address || null;
-    const vendorCoordinate = toCoordinate(vendorLocation);
-    const deliveryCoordinate =
-      toCoordinate(activeRun?.current_location) ||
-      toCoordinate(localLocations[activeRun?._id]);
-    const routeInfo = estimateRouteInfo(deliveryCoordinate, vendorLocation);
+    const isLoadingNativeRoute = nativeRoadRoute.isLoading && Platform.OS !== 'web' && !nativeRoadRoute.route;
     const routeInfoPanel = activeRun ? (
       <View style={styles.routeInfo}>
         <Text style={styles.routeInfoTitle}>Time to vendor</Text>
         <Text style={styles.routeInfoText}>
-          {routeInfo ? (
+          {isLoadingNativeRoute ? (
+            'Loading road route...'
+          ) : routeInfo ? (
             <>
-              {`${routeInfo.durationText} est. (`}
+              {`${routeInfo.durationText}${routeInfo.isEstimate ? ' est.' : ''} (`}
               <Text style={styles.routeDistanceText}>{routeInfo.distanceText}</Text>
               {')'}
             </>
@@ -229,6 +238,9 @@ const DeliveryTrackingScreen = () => {
             'Waiting for your live location and vendor destination.'
           )}
         </Text>
+        {!!nativeRoadRoute.error && Platform.OS !== 'web' && (
+          <Text style={styles.routeWarning}>Road route unavailable. Showing estimated time.</Text>
+        )}
       </View>
     ) : null;
 
@@ -273,6 +285,7 @@ const DeliveryTrackingScreen = () => {
     const Marker = maps.Marker;
     const Polyline = maps.Polyline;
     const ProviderGoogle = maps.PROVIDER_GOOGLE;
+    const roadRouteCoordinates = nativeRoadRoute.route?.coordinates || [];
     const region = deliveryCoordinate
       ? {
           latitude: (deliveryCoordinate.latitude + vendorCoordinate.latitude) / 2,
@@ -290,6 +303,8 @@ const DeliveryTrackingScreen = () => {
             provider={Platform.OS === 'android' ? ProviderGoogle : undefined}
             initialRegion={region}
             region={region}
+            mapType="standard"
+            userInterfaceStyle="light"
             toolbarEnabled={false}
             showsMyLocationButton={false}
             showsPointsOfInterests={false}
@@ -307,7 +322,9 @@ const DeliveryTrackingScreen = () => {
             {deliveryCoordinate && (
               <>
                 <Marker coordinate={deliveryCoordinate} title="My location" onPress={ignoreMapIntent} />
-                <Polyline coordinates={[deliveryCoordinate, vendorCoordinate]} strokeColor={colors.red} strokeWidth={4} />
+                {roadRouteCoordinates.length > 1 && (
+                  <Polyline coordinates={roadRouteCoordinates} strokeColor={colors.red} strokeWidth={4} />
+                )}
               </>
             )}
           </MapView>
@@ -450,6 +467,13 @@ const styles = StyleSheet.create({
   routeDistanceText: {
     color: colors.red,
     fontWeight: '900',
+  },
+  routeWarning: {
+    color: colors.amber,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 18,
+    marginTop: 6,
   },
 });
 
