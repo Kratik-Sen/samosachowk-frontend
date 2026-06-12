@@ -18,6 +18,8 @@ export const colors = {
 
 export const images = {
   logo: require('../../assets/samosa-logo.png'),
+  deliveryIcon: require('../../assets/delivery-icon.png'),
+  shopIcon: require('../../assets/shop-icon.png'),
   heroSamosa:
     'https://media.istockphoto.com/id/1299380316/photo/samosa-with-chutney-in-plate-asian-breakfast-aloo-samosa.jpg',
   samosaChaat:

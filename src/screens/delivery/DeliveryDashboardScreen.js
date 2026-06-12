@@ -10,7 +10,7 @@ import { useApiResource } from '../../hooks/useApiResource';
 const DeliveryDashboardScreen = () => {
   const navigation = useNavigation();
   const { setUser } = useAuth();
-  const deliveries = useApiResource('/delivery/dashboard', []);
+  const deliveries = useApiResource('/delivery/dashboard?scope=active', []);
   const availability = useApiResource('/delivery/availability', { availability_status: 'inactive' });
   const codValue = (deliveries.data || []).reduce((sum, delivery) => sum + Number(delivery.order?.final_amount || 0), 0);
   const collected = (deliveries.data || []).filter((delivery) => delivery.payment_collected).length;

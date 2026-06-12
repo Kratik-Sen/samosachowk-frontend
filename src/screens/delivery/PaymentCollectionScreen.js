@@ -12,7 +12,7 @@ const DELIVERY_CLOSE_DISTANCE_KM = 0.7;
 const DELIVERY_CLOSE_DISTANCE_TEXT = '0.7 km';
 
 const PaymentCollectionScreen = () => {
-  const deliveries = useApiResource('/delivery/dashboard', []);
+  const deliveries = useApiResource('/delivery/dashboard?scope=active', []);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationMessage, setLocationMessage] = useState('');
   const [isClosing, setIsClosing] = useState(false);

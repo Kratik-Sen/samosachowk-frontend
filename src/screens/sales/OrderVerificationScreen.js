@@ -23,7 +23,7 @@ const summarizeOrder = (order) =>
   }`;
 
 const OrderVerificationScreen = () => {
-  const orders = useApiResource('/orders', []);
+  const orders = useApiResource('/orders?status=Pending,Ready', []);
   const deliveryBoys = useApiResource('/sales/delivery-boys', []);
   const pendingOrders = (orders.data || []).filter((order) => order.status === 'Pending');
   const readyOrders = (orders.data || []).filter((order) => order.status === 'Ready');

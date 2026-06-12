@@ -1,12 +1,21 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, SectionTitle } from '../../components/SamosaUI';
 import { colors, images } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 
 const VendorListScreen = () => {
   const vendors = useApiResource('/sales/vendors', []);
+  const [statusFilter, setStatusFilter] = useState('active');
   const active = (vendors.data || []).filter((vendor) => vendor.user?.status === 'active').length;
-  const pending = (vendors.data || []).filter((vendor) => vendor.user?.status === 'pending').length;
+  const nonactive = (vendors.data || []).filter((vendor) => vendor.user?.status !== 'active').length;
+  const filteredVendors = useMemo(
+    () =>
+      (vendors.data || []).filter((vendor) =>
+        statusFilter === 'active' ? vendor.user?.status === 'active' : vendor.user?.status !== 'active'
+      ),
+    [statusFilter, vendors.data]
+  );
 
   return (
     <AppScreen>
@@ -21,17 +30,38 @@ const VendorListScreen = () => {
       <MetricGrid
         metrics={[
           { label: 'Active', value: `${active}`, icon: 'store-check', tone: colors.green },
-          { label: 'Pending', value: `${pending}`, icon: 'store-clock', tone: colors.amber },
+          { label: 'Nonactive', value: `${nonactive}`, icon: 'store-clock', tone: colors.amber },
         ]}
       />
 
-      <SectionTitle title="Vendors" action="Approve" />
-      <DataState isLoading={vendors.isLoading} error={vendors.error} empty={!vendors.data?.length}>
-        {(vendors.data || []).map((vendor) => (
+      <View style={styles.filterRow}>
+        {[
+          { label: 'Active', value: 'active', count: active },
+          { label: 'Nonactive', value: 'nonactive', count: nonactive },
+        ].map((item) => {
+          const isActive = statusFilter === item.value;
+
+          return (
+            <Pressable
+              key={item.value}
+              style={[styles.filterButton, isActive && styles.filterButtonActive]}
+              onPress={() => setStatusFilter(item.value)}
+            >
+              <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                {item.label} {item.count}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <SectionTitle title="Vendors" action={statusFilter === 'active' ? 'Active' : 'Nonactive'} />
+      <DataState isLoading={vendors.isLoading} error={vendors.error} empty={!filteredVendors.length}>
+        {filteredVendors.map((vendor) => (
           <InfoCard
             key={vendor._id}
             title={vendor.store_name}
-            subtitle={`${vendor.location?.city || 'City not set'} • ${vendor.user?.name || vendor.owner_name}`}
+            subtitle={`${vendor.location?.city || 'City not set'} - ${vendor.user?.name || vendor.owner_name}`}
             status={vendor.user?.status}
             icon="store-outline"
           />
@@ -40,5 +70,36 @@ const VendorListScreen = () => {
     </AppScreen>
   );
 };
+
+const styles = StyleSheet.create({
+  filterRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  filterButton: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: 12,
+  },
+  filterButtonActive: {
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
+  },
+  filterText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  filterTextActive: {
+    color: colors.white,
+  },
+});
 
 export default VendorListScreen;

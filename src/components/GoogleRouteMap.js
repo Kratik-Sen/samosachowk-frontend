@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme/brand';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { Asset } from 'expo-asset';
+import { colors, images } from '../theme/brand';
 import { useApiResource } from '../hooks/useApiResource';
 import { estimateRouteInfo } from '../utils/routeMetrics';
 
@@ -96,6 +97,27 @@ const getCurrentOrigin = () => {
 };
 
 const GOOGLE_MAPS_DEMO_MAP_ID = 'DEMO_MAP_ID';
+
+const getAssetUri = (asset) => {
+  if (!asset) {
+    return '';
+  }
+
+  if (typeof asset === 'string') {
+    return asset;
+  }
+
+  if (asset.uri) {
+    return asset.uri;
+  }
+
+  try {
+    const resolvedAsset = Asset.fromModule(asset);
+    return resolvedAsset.localUri || resolvedAsset.uri || '';
+  } catch (error) {
+    return '';
+  }
+};
 
 const getLocalizedText = (value) => {
   if (!value) {
@@ -332,9 +354,11 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
         ]);
         const { Map, Polyline: MapsPolyline } = mapsLibrary;
         const { LatLngBounds } = coreLibrary;
-        const { AdvancedMarkerElement, PinElement } = markerLibrary;
+        const { AdvancedMarkerElement } = markerLibrary;
         const { Route } = routesLibrary;
         const Polyline = MapsPolyline || maps.Polyline;
+        const shopIconUri = getAssetUri(images.shopIcon);
+        const deliveryIconUri = getAssetUri(images.deliveryIcon);
 
         if (!isMounted || !mapRef.current) {
           return;
@@ -392,19 +416,34 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
           fitMapToPoints([deliveryCoord, vendorCoord]);
         };
 
-        const createMarker = ({ position, title, glyphText, background, borderColor }) => {
-          const pin = new PinElement({
-            background,
-            borderColor,
-            glyphColor: colors.white,
-            glyphText,
-          });
+        const createMarker = ({ position, title, iconUri }) => {
+          const markerContent = document.createElement('div');
+          markerContent.style.alignItems = 'center';
+          markerContent.style.background = colors.white;
+          markerContent.style.border = `2px solid ${colors.border}`;
+          markerContent.style.borderRadius = '999px';
+          markerContent.style.boxShadow = '0 4px 10px rgba(0,0,0,0.22)';
+          markerContent.style.display = 'flex';
+          markerContent.style.height = '42px';
+          markerContent.style.justifyContent = 'center';
+          markerContent.style.overflow = 'hidden';
+          markerContent.style.width = '42px';
+
+          const markerImage = document.createElement('img');
+          markerImage.alt = title;
+          markerImage.src = iconUri;
+          markerImage.style.display = 'block';
+          markerImage.style.height = '30px';
+          markerImage.style.objectFit = 'contain';
+          markerImage.style.width = '30px';
+          markerContent.appendChild(markerImage);
+
           const marker = new AdvancedMarkerElement({
+            content: markerContent,
             map,
             position,
             title,
           });
-          marker.appendChild(pin);
           markers.push(marker);
           return marker;
         };
@@ -427,18 +466,14 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
         const vendorMarker = createMarker({
           position: vendorCoord,
           title: 'Vendor outlet',
-          glyphText: 'V',
-          background: colors.red,
-          borderColor: colors.redDark,
+          iconUri: shopIconUri,
         });
 
         let deliveryMarker = deliveryCoord
           ? createMarker({
               position: deliveryCoord,
               title: 'Delivery boy',
-              glyphText: 'D',
-              background: colors.blue,
-              borderColor: colors.ink,
+              iconUri: deliveryIconUri,
             })
           : null;
 
@@ -484,9 +519,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
                 deliveryMarker = createMarker({
                   position: startLocation,
                   title: 'Delivery boy',
-                  glyphText: 'D',
-                  background: colors.blue,
-                  borderColor: colors.ink,
+                  iconUri: deliveryIconUri,
                 });
               }
               setRouteWarning('');
@@ -506,9 +539,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
             deliveryMarker = deliveryMarker || createMarker({
               position: deliveryCoord,
               title: 'Delivery boy',
-              glyphText: 'D',
-              background: colors.blue,
-              borderColor: colors.ink,
+              iconUri: deliveryIconUri,
             });
           }
         }
@@ -567,6 +598,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
         })}
         {!isMapReady && (
           <View style={styles.mapOverlay}>
+            {!routeError && <ActivityIndicator color={colors.red} />}
             <Text style={styles.mapOverlayTitle}>
               {routeError ? 'Google map blocked' : 'Loading Google map'}
             </Text>

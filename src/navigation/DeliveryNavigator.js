@@ -13,7 +13,7 @@ const Tab = createBottomTabNavigator();
 const badgeValue = (count) => (count > 99 ? '99+' : count || undefined);
 
 const DeliveryNavigator = () => {
-  const deliveries = useApiResource('/delivery/dashboard', []);
+  const deliveries = useApiResource('/delivery/dashboard?scope=active', []);
   const assignedBadge = (deliveries.data || []).filter((delivery) => delivery.status === 'Assigned').length;
   const trackingBadge = (deliveries.data || []).filter((delivery) => delivery.status !== 'Delivered').length;
   const paymentsBadge = (deliveries.data || []).filter(

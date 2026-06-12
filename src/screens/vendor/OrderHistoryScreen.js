@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, View } from 'react-native';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import GoogleRouteMap from '../../components/GoogleRouteMap';
@@ -25,13 +25,19 @@ const toCoordinate = (location) => {
 
 const ignoreMapIntent = () => {};
 
+const NativeMarkerIcon = ({ source }) => (
+  <View style={styles.markerBubble}>
+    <Image source={source} style={styles.markerIcon} resizeMode="contain" />
+  </View>
+);
+
 const OrderHistoryScreen = () => {
   const { user } = useAuth();
-  const orders = useApiResource('/vendors/orders', []);
+  const orders = useApiResource('/vendors/orders?scope=active', []);
   const [liveLocations, setLiveLocations] = useState({});
   const [message, setMessage] = useState('');
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
-  const completed = (orders.data || []).filter((order) => order.status === 'Delivered').length;
+  const activeOrders = orders.data || [];
   const trackedOrder = useMemo(
     () => (orders.data || []).find((order) => order.status === 'Out for Delivery' && order.delivery_boy),
     [orders.data]
@@ -255,14 +261,20 @@ const OrderHistoryScreen = () => {
               title="Vendor outlet"
               description={vendorLocation?.location}
               onPress={ignoreMapIntent}
-            />
+              tracksViewChanges={false}
+            >
+              <NativeMarkerIcon source={images.shopIcon} />
+            </Marker>
             {deliveryCoordinate && (
               <>
                 <Marker
                   coordinate={deliveryCoordinate}
                   title={trackedOrder.delivery_boy?.name || 'Delivery boy'}
                   onPress={ignoreMapIntent}
-                />
+                  tracksViewChanges={false}
+                >
+                  <NativeMarkerIcon source={images.deliveryIcon} />
+                </Marker>
                 {roadRouteCoordinates.length > 1 && (
                   <Polyline coordinates={roadRouteCoordinates} strokeColor={colors.red} strokeWidth={4} />
                 )}
@@ -287,14 +299,14 @@ const OrderHistoryScreen = () => {
 
       <MetricGrid
         metrics={[
-          { label: 'Total orders', value: `${orders.data?.length || 0}`, icon: 'calendar-check', tone: colors.red },
-          { label: 'Completed', value: `${completed}`, icon: 'check-circle', tone: colors.green },
+          { label: 'Active orders', value: `${activeOrders.length}`, icon: 'calendar-check', tone: colors.red },
+          { label: 'On the way', value: `${activeOrders.filter((order) => order.status === 'Out for Delivery').length}`, icon: 'truck-delivery-outline', tone: colors.green },
         ]}
       />
 
-      <SectionTitle title="Latest Orders" />
-      <DataState isLoading={orders.isLoading} error={orders.error} empty={!orders.data?.length}>
-        {(orders.data || []).map((order) => (
+      <SectionTitle title="Active Orders" />
+      <DataState isLoading={orders.isLoading} error={orders.error} empty={!activeOrders.length}>
+        {activeOrders.map((order) => (
           <InfoCard
             key={order._id}
             title={order._id?.slice(-6).toUpperCase()}
@@ -342,6 +354,20 @@ const styles = StyleSheet.create({
   map: {
     height: '100%',
     width: '100%',
+  },
+  markerBubble: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  markerIcon: {
+    height: 30,
+    width: 30,
   },
   trackingBox: {
     backgroundColor: colors.white,

@@ -1,17 +1,88 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { AppScreen } from '../../components/SamosaUI';
-import { useAuth } from '../../context/AuthContext';
-import { colors, imageSource, images } from '../../theme/brand';
+import axios from 'axios';
+import { AppScreen, DataState, InfoCard, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
+import { API_URL, useAuth } from '../../context/AuthContext';
+import { colors, formatMoney, imageSource, images } from '../../theme/brand';
+
+const HISTORY_PAGE_SIZE = 8;
+
+const summarizeItems = (order) =>
+  (order.items || []).map((item) => `${item.name} x ${item.quantity}`).join(', ');
+
+const formatHistoryDate = (value) => {
+  if (!value) {
+    return 'Recent';
+  }
+
+  return new Date(value).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
 
 const ProfileScreen = () => {
   const { user, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [isHistoryLoadingMore, setIsHistoryLoadingMore] = useState(false);
+  const [historyError, setHistoryError] = useState('');
   const isMountedRef = useRef(true);
 
   useEffect(() => () => {
     isMountedRef.current = false;
   }, []);
+
+  const loadOrderHistory = useCallback(async (pageToLoad = 1) => {
+    if (!user?.token) {
+      setIsHistoryLoading(false);
+      return;
+    }
+
+    const isLoadMore = pageToLoad > 1;
+
+    try {
+      if (isLoadMore) {
+        setIsHistoryLoadingMore(true);
+      } else {
+        setIsHistoryLoading(true);
+      }
+
+      setHistoryError('');
+      const { data } = await axios.get(`${API_URL}/orders/history`, {
+        params: {
+          page: pageToLoad,
+          limit: HISTORY_PAGE_SIZE,
+        },
+      });
+      const nextOrders = data.orders || [];
+
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      setHistory((current) => (isLoadMore ? [...current, ...nextOrders] : nextOrders));
+      setHistoryPage(pageToLoad);
+      setHasMoreHistory(Boolean(data.hasMore));
+    } catch (error) {
+      if (isMountedRef.current) {
+        setHistoryError(error.response?.data?.message || 'Unable to load order history');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsHistoryLoading(false);
+        setIsHistoryLoadingMore(false);
+      }
+    }
+  }, [user?.token]);
+
+  useEffect(() => {
+    loadOrderHistory(1);
+  }, [loadOrderHistory]);
 
   const handleLogout = async () => {
     if (isLoggingOut) {
@@ -41,6 +112,37 @@ const ProfileScreen = () => {
           <Text style={styles.value}>{user?.phone || 'Not available'}</Text>
           <Text style={styles.label}>Status</Text>
           <Text style={styles.value}>{user?.status || 'pending'}</Text>
+        </View>
+
+        <View style={styles.historySection}>
+          <SectionTitle title="Order History" action="Last 20 days" />
+          <DataState
+            isLoading={isHistoryLoading && !history.length}
+            error={!history.length ? historyError : ''}
+            empty={!history.length}
+          >
+            {history.map((order) => (
+              <InfoCard
+                key={order._id}
+                title={`${order._id?.slice(-6).toUpperCase()} - ${order.customer_name}`}
+                subtitle={`${formatHistoryDate(order.updatedAt)} - ${summarizeItems(order) || 'No item details'}`}
+                right={formatMoney(order.final_amount)}
+                status={order.status}
+                icon="history"
+              />
+            ))}
+          </DataState>
+          {!!historyError && history.length > 0 && <Text style={styles.historyError}>{historyError}</Text>}
+          {hasMoreHistory && (
+            <PrimaryButton
+              label="Load More Orders"
+              icon="chevron-down"
+              tone={colors.ink}
+              loading={isHistoryLoadingMore}
+              loadingLabel="Loading..."
+              onPress={() => loadOrderHistory(historyPage + 1)}
+            />
+          )}
         </View>
 
         <Pressable
@@ -98,6 +200,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 24,
     padding: 16,
+  },
+  historySection: {
+    marginTop: 24,
+  },
+  historyError: {
+    color: colors.redDark,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 12,
+    textAlign: 'center',
   },
   label: {
     color: colors.softText,

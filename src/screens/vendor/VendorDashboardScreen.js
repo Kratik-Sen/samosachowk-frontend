@@ -18,7 +18,7 @@ const VendorDashboardScreen = () => {
     rewardPoints: 0,
   });
   const products = useApiResource('/products', []);
-  const orders = useApiResource('/vendors/orders', []);
+  const orders = useApiResource('/vendors/orders?scope=active', []);
   const dashboardData = dashboard.data || {};
   const [locationPrompt, setLocationPrompt] = useState(null);
   const [dismissedPromptIds, setDismissedPromptIds] = useState({});

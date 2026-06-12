@@ -14,7 +14,7 @@ const activeOrderStatuses = ['Pending', 'Verified', 'In Production', 'Ready', 'O
 const badgeValue = (count) => (count > 99 ? '99+' : count || undefined);
 
 const VendorNavigator = () => {
-  const orders = useApiResource('/vendors/orders', []);
+  const orders = useApiResource('/vendors/orders?scope=active', []);
   const historyBadge = (orders.data || []).filter((order) => activeOrderStatuses.includes(order.status)).length;
 
   return (
