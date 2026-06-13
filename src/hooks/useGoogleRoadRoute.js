@@ -17,7 +17,7 @@ const getLocationKey = (location) => {
   return coordinate ? `${coordinate.latitude},${coordinate.longitude}` : '';
 };
 
-export const useGoogleRoadRoute = (originLocation, destinationLocation, enabled = true) => {
+export const useGoogleRoadRoute = (originLocation, destinationLocation, enabled = true, refreshKey = 0) => {
   const [route, setRoute] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +59,7 @@ export const useGoogleRoadRoute = (originLocation, destinationLocation, enabled 
     return () => {
       isMounted = false;
     };
-  }, [enabled, originKey, destinationKey]);
+  }, [enabled, originKey, destinationKey, refreshKey]);
 
   return {
     error,

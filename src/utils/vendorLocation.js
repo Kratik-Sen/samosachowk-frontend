@@ -24,7 +24,7 @@ export const getCurrentVendorLocation = async () => {
   }
 
   const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
+    accuracy: Location.Accuracy.High,
   });
   const lat = position.coords.latitude;
   const lng = position.coords.longitude;

@@ -13,10 +13,10 @@ import { canRenderNativeMap, nativeMapSetupMessage } from '../../utils/nativeMap
 import { useGoogleRoadRoute } from '../../hooks/useGoogleRoadRoute';
 
 const toCoordinate = (location) => {
-  const latitude = Number(location?.lat);
-  const longitude = Number(location?.lng);
+  const latitude = Number(location?.lat ?? location?.latitude);
+  const longitude = Number(location?.lng ?? location?.longitude);
 
-  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
     return null;
   }
 
@@ -37,6 +37,8 @@ const OrderHistoryScreen = () => {
   const [liveLocations, setLiveLocations] = useState({});
   const [message, setMessage] = useState('');
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
+  const [isRefreshingMap, setIsRefreshingMap] = useState(false);
+  const [mapRefreshKey, setMapRefreshKey] = useState(0);
   const activeOrders = orders.data || [];
   const trackedOrder = useMemo(
     () => (orders.data || []).find((order) => order.status === 'Out for Delivery' && order.delivery_boy),
@@ -51,7 +53,8 @@ const OrderHistoryScreen = () => {
   const nativeRoadRoute = useGoogleRoadRoute(
     deliveryCoordinate,
     vendorCoordinate,
-    Platform.OS !== 'web' && Boolean(deliveryCoordinate && vendorCoordinate)
+    Platform.OS !== 'web' && Boolean(deliveryCoordinate && vendorCoordinate),
+    mapRefreshKey
   );
   const routeInfo = nativeRoadRoute.route?.routeInfo || estimateRouteInfo(liveLocation, vendorLocation);
   const canRenderMap = trackedOrder && (Platform.OS === 'web' ? vendorLocation : vendorCoordinate);
@@ -114,6 +117,7 @@ const OrderHistoryScreen = () => {
     });
     socket.on('tracking:snapshot', applyTrackingPayload);
     socket.on('delivery:location', applyTrackingPayload);
+    socket.on('vendor:location', applyTrackingPayload);
 
     if (socket.connected) {
       joinTrackingRoom();
@@ -128,31 +132,55 @@ const OrderHistoryScreen = () => {
     };
   }, [user?.token, trackedOrder?._id, trackedOrder?.delivery?._id, orders.refetch]);
 
-  const updateVendorLocation = async () => {
-    if (isUpdatingLocation) {
-      return;
+  const saveCurrentVendorLocation = async () => {
+    if (!trackedOrder?._id) {
+      throw new Error('No active delivery order to update.');
     }
 
-    if (!trackedOrder?._id) {
-      setMessage('No active delivery order to update.');
+    const nextLocation = await getCurrentVendorLocation();
+    await axios.put(`${API_URL}/vendors/orders/${trackedOrder._id}/location`, nextLocation);
+    orders.setData((current) =>
+      (current || []).map((order) =>
+        order._id === trackedOrder._id ? { ...order, delivery_address: nextLocation } : order
+      )
+    );
+    return nextLocation;
+  };
+
+  const updateVendorLocation = async () => {
+    if (isUpdatingLocation || isRefreshingMap) {
       return;
     }
 
     try {
       setIsUpdatingLocation(true);
       setMessage('');
-      const nextLocation = await getCurrentVendorLocation();
-      await axios.put(`${API_URL}/vendors/orders/${trackedOrder._id}/location`, nextLocation);
-      orders.setData((current) =>
-        (current || []).map((order) =>
-          order._id === trackedOrder._id ? { ...order, delivery_address: nextLocation } : order
-        )
-      );
+      await saveCurrentVendorLocation();
+      setMapRefreshKey((current) => current + 1);
       setMessage('Current vendor location shared for this delivery.');
     } catch (error) {
       setMessage(error.response?.data?.message || error.message || 'Unable to update vendor location.');
     } finally {
       setIsUpdatingLocation(false);
+    }
+  };
+
+  const refreshTrackingMap = async () => {
+    if (isRefreshingMap || isUpdatingLocation) {
+      return;
+    }
+
+    try {
+      setIsRefreshingMap(true);
+      setMessage('');
+      await saveCurrentVendorLocation();
+      await orders.refetch();
+      setMapRefreshKey((current) => current + 1);
+      setMessage('Map refreshed with current vendor and delivery locations.');
+    } catch (error) {
+      setMessage(error.response?.data?.message || error.message || 'Unable to refresh map location.');
+    } finally {
+      setIsRefreshingMap(false);
     }
   };
 
@@ -199,6 +227,17 @@ const OrderHistoryScreen = () => {
               : 'Once sales assigns a delivery boy, live tracking will appear here.'}
           </Text>
           {renderRouteInfo()}
+          {trackedOrder && (
+            <PrimaryButton
+              label="Refresh Map"
+              icon="refresh"
+              tone={colors.ink}
+              disabled={isRefreshingMap || isUpdatingLocation}
+              loading={isRefreshingMap}
+              loadingLabel="Refreshing..."
+              onPress={refreshTrackingMap}
+            />
+          )}
         </View>
       );
     }
@@ -209,6 +248,9 @@ const OrderHistoryScreen = () => {
           vendorLocation={vendorLocation}
           deliveryLocation={deliveryCoordinate}
           status={trackedOrder.status}
+          onRefresh={refreshTrackingMap}
+          refreshing={isRefreshingMap}
+          refreshKey={mapRefreshKey}
         />
       );
     }
@@ -219,6 +261,15 @@ const OrderHistoryScreen = () => {
           <Text style={styles.trackingTitle}>Native map setup required</Text>
           <Text style={styles.trackingText}>{nativeMapSetupMessage}</Text>
           {renderRouteInfo()}
+          <PrimaryButton
+            label="Refresh Map"
+            icon="refresh"
+            tone={colors.ink}
+            disabled={isRefreshingMap || isUpdatingLocation}
+            loading={isRefreshingMap}
+            loadingLabel="Refreshing..."
+            onPress={refreshTrackingMap}
+          />
         </View>
       );
     }
@@ -283,6 +334,15 @@ const OrderHistoryScreen = () => {
           </MapView>
         </View>
         {renderRouteInfo()}
+        <PrimaryButton
+          label="Refresh Map"
+          icon="refresh"
+          tone={colors.ink}
+          disabled={isRefreshingMap || isUpdatingLocation}
+          loading={isRefreshingMap}
+          loadingLabel="Refreshing..."
+          onPress={refreshTrackingMap}
+        />
       </>
     );
   };
@@ -329,7 +389,7 @@ const OrderHistoryScreen = () => {
             label="Use Current Location"
             icon="crosshairs-gps"
             tone={colors.ink}
-            disabled={isUpdatingLocation}
+            disabled={isUpdatingLocation || isRefreshingMap}
             loading={isUpdatingLocation}
             loadingLabel="Updating..."
             onPress={updateVendorLocation}

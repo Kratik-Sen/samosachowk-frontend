@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
 import { colors, images } from '../theme/brand';
 import { useApiResource } from '../hooks/useApiResource';
@@ -9,7 +10,7 @@ const toCoordinate = (location) => {
   const lat = Number(location?.lat ?? location?.latitude);
   const lng = Number(location?.lng ?? location?.longitude);
 
-  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return null;
   }
 
@@ -260,13 +261,15 @@ const loadGoogleMaps = (apiKey) => {
   return window.__samosaGoogleMapsPromise;
 };
 
-const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
+const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, refreshing = false, refreshKey = 0 }) => {
   const mapRef = useRef(null);
   const hasLoadedMapRef = useRef(false);
   const [routeError, setRouteError] = useState('');
   const [routeWarning, setRouteWarning] = useState('');
   const [routeInfo, setRouteInfo] = useState(null);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [localRefreshKey, setLocalRefreshKey] = useState(0);
+  const [isRefreshingMap, setIsRefreshingMap] = useState(false);
   const config = useApiResource('/config/public', {
     googleMapsApiKey: '',
     googleMapsMapId: GOOGLE_MAPS_DEMO_MAP_ID,
@@ -292,6 +295,24 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
   // Map renders whenever we have the vendor location; route drawn when both locations are known
   const canShowMap = Platform.OS === 'web' && googleMapsApiKey && !!destination;
   const canRoute = canShowMap && !!origin;
+  const canRefresh = typeof onRefresh === 'function';
+  const refreshInProgress = refreshing || isRefreshingMap;
+
+  const refreshMap = async () => {
+    if (!canRefresh || refreshInProgress) {
+      return;
+    }
+
+    try {
+      setIsRefreshingMap(true);
+      hasLoadedMapRef.current = false;
+      setIsMapReady(false);
+      await onRefresh();
+    } finally {
+      setLocalRefreshKey((current) => current + 1);
+      setIsRefreshingMap(false);
+    }
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -509,12 +530,8 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
               }
 
               const routeLeg = route.legs?.[0];
-              const endLocation = getRouteLegLocation(routeLeg, 'endLocation', 'end_location');
               const startLocation = getRouteLegLocation(routeLeg, 'startLocation', 'start_location');
 
-              if (endLocation) {
-                vendorMarker.position = endLocation;
-              }
               if (!deliveryMarker && startLocation) {
                 deliveryMarker = createMarker({
                   position: startLocation,
@@ -556,7 +573,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
       isMounted = false;
       cleanupMap();
     };
-  }, [canShowMap, canRoute, googleMapsApiKey, googleMapsMapId, originKey, destinationKey]);
+  }, [canShowMap, canRoute, googleMapsApiKey, googleMapsMapId, originKey, destinationKey, refreshKey, localRefreshKey]);
 
   if (Platform.OS !== 'web') {
     return null;
@@ -609,6 +626,26 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status }) => {
         )}
       </View>
       <View style={styles.footer}>
+        {canRefresh && (
+          <Pressable
+            disabled={refreshInProgress}
+            style={({ pressed }) => [
+              styles.refreshButton,
+              pressed && styles.refreshButtonPressed,
+              refreshInProgress && styles.refreshButtonDisabled,
+            ]}
+            onPress={refreshMap}
+          >
+            {refreshInProgress ? (
+              <ActivityIndicator color={colors.white} size="small" />
+            ) : (
+              <MaterialCommunityIcons name="refresh" size={18} color={colors.white} />
+            )}
+            <Text style={styles.refreshButtonText}>
+              {refreshInProgress ? 'Refreshing...' : 'Refresh Map'}
+            </Text>
+          </Pressable>
+        )}
         <Text style={styles.footerText}>Vendor: {describeLocation(vendorLocation)}</Text>
         <Text style={styles.footerText}>
           Delivery boy: {describeLocation(deliveryLocation)}
@@ -680,6 +717,28 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     borderTopWidth: 1,
     padding: 12,
+  },
+  refreshButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.ink,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  refreshButtonPressed: {
+    opacity: 0.84,
+  },
+  refreshButtonDisabled: {
+    opacity: 0.55,
+  },
+  refreshButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '900',
   },
   footerText: {
     color: colors.ink,

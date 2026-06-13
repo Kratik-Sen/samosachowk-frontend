@@ -16,7 +16,7 @@ const toCoordinate = (location) => {
   const latitude = Number(location?.lat ?? location?.latitude);
   const longitude = Number(location?.lng ?? location?.longitude);
 
-  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
     return null;
   }
 
@@ -37,6 +37,8 @@ const DeliveryTrackingScreen = () => {
   const [localLocations, setLocalLocations] = useState({});
   const [busyId, setBusyId] = useState('');
   const [message, setMessage] = useState('');
+  const [isRefreshingMap, setIsRefreshingMap] = useState(false);
+  const [mapRefreshKey, setMapRefreshKey] = useState(0);
   const activeRun = useMemo(
     () => (deliveries.data || []).find((delivery) => delivery.status !== 'Delivered'),
     [deliveries.data]
@@ -49,7 +51,8 @@ const DeliveryTrackingScreen = () => {
   const nativeRoadRoute = useGoogleRoadRoute(
     deliveryCoordinate,
     vendorCoordinate,
-    Platform.OS !== 'web' && Boolean(deliveryCoordinate && vendorCoordinate)
+    Platform.OS !== 'web' && Boolean(deliveryCoordinate && vendorCoordinate),
+    mapRefreshKey
   );
   const routeInfo = nativeRoadRoute.route?.routeInfo || estimateRouteInfo(deliveryCoordinate, vendorLocation);
 
@@ -62,6 +65,29 @@ const DeliveryTrackingScreen = () => {
     deliveries.setData((current) =>
       (current || []).map((run) =>
         run._id === deliveryId ? { ...run, current_location: location } : run
+      )
+    );
+  };
+
+  const applyVendorLocation = (deliveryId, location) => {
+    if (!deliveryId || !location) {
+      return;
+    }
+
+    deliveries.setData((current) =>
+      (current || []).map((run) =>
+        run._id === deliveryId
+          ? {
+              ...run,
+              order: {
+                ...(run.order || {}),
+                delivery_address: {
+                  ...(run.order?.delivery_address || {}),
+                  ...location,
+                },
+              },
+            }
+          : run
       )
     );
   };
@@ -106,13 +132,14 @@ const DeliveryTrackingScreen = () => {
 
     if (!permission.granted) {
       setMessage('Location permission is required for live tracking.');
-      return;
+      return false;
     }
 
     const position = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: Location.Accuracy.High,
     });
     await publishLocation(run, position.coords, shouldRefetch);
+    return true;
   };
 
   useEffect(() => {
@@ -124,7 +151,13 @@ const DeliveryTrackingScreen = () => {
     const activeRunId = activeRun?._id;
     const handleLocation = (payload) => {
       if (payload?.deliveryId === activeRunId) {
-        applyLiveLocation(payload.deliveryId, payload.current_location);
+        if (payload.current_location) {
+          applyLiveLocation(payload.deliveryId, payload.current_location);
+        }
+
+        if (payload.vendor_location) {
+          applyVendorLocation(payload.deliveryId, payload.vendor_location);
+        }
       }
     };
 
@@ -138,6 +171,7 @@ const DeliveryTrackingScreen = () => {
     });
     socket.on('tracking:snapshot', handleLocation);
     socket.on('delivery:location', handleLocation);
+    socket.on('vendor:location', handleLocation);
     socket.on('delivery:status', applyDeliveryStatus);
 
     return () => {
@@ -166,7 +200,7 @@ const DeliveryTrackingScreen = () => {
       }
 
       const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High,
       });
 
       if (isActive) {
@@ -175,7 +209,7 @@ const DeliveryTrackingScreen = () => {
 
       const nextSubscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy.High,
           distanceInterval: 20,
           timeInterval: 7000,
         },
@@ -216,13 +250,41 @@ const DeliveryTrackingScreen = () => {
       setBusyId(run._id);
       setMessage('');
       await axios.put(`${API_URL}/delivery/${run._id}/accept`);
-      await shareLocation(run, false);
+      const didShareLocation = await shareLocation(run, false);
       await deliveries.refetch();
-      setMessage('Delivery accepted and live location shared.');
+      setMessage(
+        didShareLocation
+          ? 'Delivery accepted and live location shared.'
+          : 'Delivery accepted. Allow location permission to share live tracking.'
+      );
     } catch (error) {
       setMessage(error.response?.data?.message || 'Unable to accept delivery');
     } finally {
       setBusyId('');
+    }
+  };
+
+  const refreshTrackingMap = async () => {
+    if (!activeRun || isRefreshingMap) {
+      return;
+    }
+
+    try {
+      setIsRefreshingMap(true);
+      setMessage('');
+      const didShareLocation = await shareLocation(activeRun, false);
+
+      if (!didShareLocation) {
+        return;
+      }
+
+      await deliveries.refetch();
+      setMapRefreshKey((current) => current + 1);
+      setMessage('Map refreshed with your latest location.');
+    } catch (error) {
+      setMessage(error.response?.data?.message || error.message || 'Unable to refresh map location.');
+    } finally {
+      setIsRefreshingMap(false);
     }
   };
 
@@ -262,6 +324,17 @@ const DeliveryTrackingScreen = () => {
               : 'Assigned runs will appear here after sales dispatch.'}
           </Text>
           {routeInfoPanel}
+          {activeRun && (
+            <PrimaryButton
+              label="Refresh Map"
+              icon="refresh"
+              tone={colors.ink}
+              disabled={isRefreshingMap}
+              loading={isRefreshingMap}
+              loadingLabel="Refreshing..."
+              onPress={refreshTrackingMap}
+            />
+          )}
         </View>
       );
     }
@@ -272,6 +345,9 @@ const DeliveryTrackingScreen = () => {
           vendorLocation={vendorLocation}
           deliveryLocation={deliveryCoordinate}
           status={activeRun.status}
+          onRefresh={refreshTrackingMap}
+          refreshing={isRefreshingMap}
+          refreshKey={mapRefreshKey}
         />
       );
     }
@@ -282,6 +358,15 @@ const DeliveryTrackingScreen = () => {
           <Text style={styles.trackingTitle}>Native map setup required</Text>
           <Text style={styles.trackingText}>{nativeMapSetupMessage}</Text>
           {routeInfoPanel}
+          <PrimaryButton
+            label="Refresh Map"
+            icon="refresh"
+            tone={colors.ink}
+            disabled={isRefreshingMap}
+            loading={isRefreshingMap}
+            loadingLabel="Refreshing..."
+            onPress={refreshTrackingMap}
+          />
         </View>
       );
     }
@@ -346,6 +431,15 @@ const DeliveryTrackingScreen = () => {
           </MapView>
         </View>
         {routeInfoPanel}
+        <PrimaryButton
+          label="Refresh Map"
+          icon="refresh"
+          tone={colors.ink}
+          disabled={isRefreshingMap}
+          loading={isRefreshingMap}
+          loadingLabel="Refreshing..."
+          onPress={refreshTrackingMap}
+        />
       </>
     );
   };
@@ -400,8 +494,10 @@ const DeliveryTrackingScreen = () => {
                   try {
                     setBusyId(run._id);
                     setMessage('');
-                    await shareLocation(run);
-                    setMessage('Location shared with vendor.');
+                    const didShareLocation = await shareLocation(run);
+                    if (didShareLocation) {
+                      setMessage('Location shared with vendor.');
+                    }
                   } catch (error) {
                     setMessage(error.response?.data?.message || 'Unable to share location');
                   } finally {

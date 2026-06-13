@@ -67,13 +67,13 @@ const PaymentCollectionScreen = () => {
       }
 
       const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High,
       });
       setPosition(position);
 
       subscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy.High,
           distanceInterval: 20,
           timeInterval: 7000,
         },
@@ -104,7 +104,7 @@ const PaymentCollectionScreen = () => {
     }
 
     const position = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: Location.Accuracy.High,
     });
     const nextLocation = {
       lat: position.coords.latitude,
