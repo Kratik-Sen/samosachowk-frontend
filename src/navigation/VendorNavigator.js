@@ -8,6 +8,7 @@ import OrderHistoryScreen from '../screens/vendor/OrderHistoryScreen';
 import WalletScreen from '../screens/vendor/WalletScreen';
 import ProfileScreen from '../screens/vendor/ProfileScreen';
 import { useApiResource } from '../hooks/useApiResource';
+import { useRealtimeActionSound } from '../hooks/useRealtimeNotificationSound';
 
 const Tab = createBottomTabNavigator();
 const activeOrderStatuses = ['Pending', 'Verified', 'In Production', 'Ready', 'Out for Delivery'];
@@ -16,6 +17,13 @@ const badgeValue = (count) => (count > 99 ? '99+' : count || undefined);
 const VendorNavigator = () => {
   const orders = useApiResource('/vendors/orders?scope=active', []);
   const historyBadge = (orders.data || []).filter((order) => activeOrderStatuses.includes(order.status)).length;
+
+  useRealtimeActionSound({
+    actions: ['verified', 'production-started', 'ready', 'delivery-assigned', 'status-updated'],
+    entity: 'order',
+    sound: 'dot',
+  });
+  useRealtimeActionSound({ actions: ['accepted', 'delivered'], entity: 'delivery', sound: 'delivery' });
 
   return (
     <Tab.Navigator

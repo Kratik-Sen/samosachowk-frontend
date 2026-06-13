@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
@@ -7,6 +7,7 @@ import { API_URL } from '../../context/AuthContext';
 import { colors, formatMoney, images } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 import { formatDistance, getDistanceKmBetween } from '../../utils/routeMetrics';
+import { getDeliveryStopSubtitle } from '../../utils/deliveryContact';
 
 const DELIVERY_CLOSE_DISTANCE_KM = 0.7;
 const DELIVERY_CLOSE_DISTANCE_TEXT = '0.7 km';
@@ -16,6 +17,7 @@ const PaymentCollectionScreen = () => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationMessage, setLocationMessage] = useState('');
   const [isClosing, setIsClosing] = useState(false);
+  const [completedRun, setCompletedRun] = useState(null);
   const pendingCod = (deliveries.data || [])
     .filter((delivery) => delivery.order?.payment_method === 'COD' && !delivery.payment_collected)
     .reduce((sum, delivery) => sum + Number(delivery.order?.final_amount || 0), 0);
@@ -140,7 +142,8 @@ const PaymentCollectionScreen = () => {
         amount_collected: isCod ? run.order?.final_amount || 0 : 0,
         current_location: latestLocation,
       });
-      deliveries.refetch();
+      setCompletedRun(run);
+      await deliveries.refetch();
     } catch (error) {
       setLocationMessage(error.response?.data?.message || error.message || 'Unable to close delivery.');
     } finally {
@@ -183,7 +186,11 @@ const PaymentCollectionScreen = () => {
           <InfoCard
             key={run._id}
             title={run.order?.customer_name || 'Delivery'}
-            subtitle={run.order?.payment_method === 'COD' ? (run.payment_collected ? 'Payment collected' : 'Collection pending') : 'Paid online'}
+            subtitle={`${
+              run.order?.payment_method === 'COD'
+                ? (run.payment_collected ? 'Payment collected' : 'Collection pending')
+                : 'Paid online'
+            } - ${getDeliveryStopSubtitle(run.order, run.notes || 'No address note')}`}
             right={formatMoney(run.order?.final_amount)}
             status={run.status}
             icon="cash-register"
@@ -199,6 +206,22 @@ const PaymentCollectionScreen = () => {
         loadingLabel="Closing..."
         onPress={closeFirst}
       />
+
+      <Modal transparent visible={!!completedRun} animationType="fade" onRequestClose={() => setCompletedRun(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Order complete</Text>
+            <Text style={styles.modalText}>
+              {completedRun?.order?.customer_name || 'Delivery'} has been closed successfully.
+            </Text>
+            <Text style={styles.modalAmount}>{formatMoney(completedRun?.order?.final_amount)}</Text>
+            <PrimaryButton label="Done" icon="check-circle" onPress={() => setCompletedRun(null)} />
+            <Pressable style={styles.modalCancel} onPress={() => setCompletedRun(null)}>
+              <Text style={styles.modalCancelText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </AppScreen>
   );
 };
@@ -240,6 +263,49 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 18,
     marginTop: 8,
+  },
+  modalOverlay: {
+    alignItems: 'center',
+    backgroundColor: '#00000080',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 18,
+  },
+  modalCard: {
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    maxWidth: 420,
+    padding: 18,
+    width: '100%',
+  },
+  modalTitle: {
+    color: colors.ink,
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  modalText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  modalAmount: {
+    color: colors.green,
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 14,
+  },
+  modalCancel: {
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  modalCancelText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '900',
   },
 });
 

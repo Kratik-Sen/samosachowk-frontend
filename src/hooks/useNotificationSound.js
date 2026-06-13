@@ -37,6 +37,48 @@ const ensureAudioMode = () => {
   return audioModePromise;
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const seekToStart = async (player) => {
+  try {
+    if (player?.seekTo) {
+      await player.seekTo(0);
+    }
+  } catch {
+    // Some platforms cannot seek until the asset is fully ready. The next play still works.
+  }
+};
+
+const primePlayer = async (player) => {
+  if (!player) {
+    return;
+  }
+
+  const previousVolume = typeof player.volume === 'number' ? player.volume : undefined;
+
+  try {
+    await ensureAudioMode();
+
+    if (previousVolume !== undefined) {
+      player.volume = 0;
+    }
+
+    await seekToStart(player);
+    player.play();
+    await sleep(80);
+
+    if (player.pause) {
+      player.pause();
+    }
+
+    await seekToStart(player);
+  } finally {
+    if (previousVolume !== undefined) {
+      player.volume = previousVolume;
+    }
+  }
+};
+
 export const useNotificationSound = (soundName) => {
   const source = soundSources[soundName] || null;
   const player = useAudioPlayer(source, {
@@ -56,6 +98,44 @@ export const useNotificationSound = (soundName) => {
     return undefined;
   }, [source]);
 
+  useEffect(() => {
+    if (!source || !player || typeof document === 'undefined') {
+      return undefined;
+    }
+
+    let hasPrimed = false;
+    const events = ['pointerdown', 'touchstart', 'keydown'];
+
+    const removeListeners = () => {
+      events.forEach((eventName) => {
+        document.removeEventListener(eventName, unlockAudio, true);
+      });
+    };
+
+    const unlockAudio = () => {
+      if (hasPrimed) {
+        return;
+      }
+
+      hasPrimed = true;
+      primePlayer(player)
+        .catch(() => {
+          hasPrimed = false;
+        })
+        .finally(() => {
+          if (hasPrimed) {
+            removeListeners();
+          }
+        });
+    };
+
+    events.forEach((eventName) => {
+      document.addEventListener(eventName, unlockAudio, true);
+    });
+
+    return removeListeners;
+  }, [player, source]);
+
   return useCallback(async () => {
     if (!source || !player) {
       return;
@@ -68,9 +148,7 @@ export const useNotificationSound = (soundName) => {
         player.pause();
       }
 
-      if (player.isLoaded) {
-        await player.seekTo(0);
-      }
+      await seekToStart(player);
 
       player.play();
     } catch (error) {

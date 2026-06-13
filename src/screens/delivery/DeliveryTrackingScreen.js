@@ -11,6 +11,7 @@ import { useApiResource } from '../../hooks/useApiResource';
 import { estimateRouteInfo } from '../../utils/routeMetrics';
 import { canRenderNativeMap, nativeMapSetupMessage } from '../../utils/nativeMaps';
 import { useGoogleRoadRoute } from '../../hooks/useGoogleRoadRoute';
+import { getDeliveryStopSubtitle, getVendorContactText } from '../../utils/deliveryContact';
 
 const toCoordinate = (location) => {
   const latitude = Number(location?.lat ?? location?.latitude);
@@ -333,6 +334,7 @@ const DeliveryTrackingScreen = () => {
               ? vendorLocation?.location || 'Vendor current location is not set yet.'
               : 'Assigned runs will appear here after sales dispatch.'}
           </Text>
+          {activeRun && <Text style={styles.vendorContact}>{getVendorContactText(activeRun.order)}</Text>}
           {routeInfoPanel}
           {activeRun && (
             <PrimaryButton
@@ -467,6 +469,12 @@ const DeliveryTrackingScreen = () => {
       {!!message && <Text style={styles.message}>{message}</Text>}
 
       <SectionTitle title="Active Route" action={activeRun?.status || 'Tracking'} />
+      {activeRun && (
+        <View style={styles.contactCard}>
+          <Text style={styles.contactLabel}>Vendor contact</Text>
+          <Text style={styles.contactText}>{getVendorContactText(activeRun.order)}</Text>
+        </View>
+      )}
       {renderRouteMap()}
 
       <SectionTitle title="Route Stops" />
@@ -475,7 +483,7 @@ const DeliveryTrackingScreen = () => {
           <View key={run._id} style={styles.runBlock}>
             <InfoCard
               title={`${index + 1}. ${run.order?.customer_name || 'Delivery stop'}`}
-              subtitle={run.order?.delivery_address?.location || run.notes || 'No route note'}
+              subtitle={getDeliveryStopSubtitle(run.order, run.notes || 'No route note')}
               status={run.status}
               icon="map-marker-check"
             />
@@ -573,6 +581,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 19,
+  },
+  contactCard: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 14,
+    padding: 14,
+  },
+  contactLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  contactText: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 20,
+  },
+  vendorContact: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '900',
+    lineHeight: 20,
+    marginTop: 8,
   },
   message: {
     color: colors.redDark,

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import axios from 'axios';
 import { API_URL, useAuth } from '../context/AuthContext';
-import { useRealtimeEvent } from '../context/RealtimeContext';
+import { useRealtime, useRealtimeEvent } from '../context/RealtimeContext';
 
 const pathDomains = [
   { test: (path) => path.startsWith('/admin/overview'), domains: ['admin', 'orders', 'products', 'users', 'vendors', 'deliveries', 'wallet', 'production'] },
@@ -36,12 +37,17 @@ const getLiveDomains = (path, options) => {
 
 export const useApiResource = (path, initialValue = null, options = {}) => {
   const { user } = useAuth();
+  const { isConnected } = useRealtime();
   const [data, setData] = useState(initialValue);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const liveDomains = getLiveDomains(path, options);
   const liveDomainsKey = liveDomains.join('|');
   const realtimeEnabled = Boolean(user?.token && liveDomains.length && options.enabled !== false);
+  const liveFallbackIntervalMs =
+    realtimeEnabled && options.liveFallbackIntervalMs !== false
+      ? Number(options.liveFallbackIntervalMs || 8000)
+      : 0;
   const refreshTimerRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -105,6 +111,42 @@ export const useApiResource = (path, initialValue = null, options = {}) => {
   );
 
   useRealtimeEvent('connect', scheduleRefresh, realtimeEnabled);
+
+  useEffect(() => {
+    if (realtimeEnabled && isConnected) {
+      scheduleRefresh();
+    }
+  }, [isConnected, realtimeEnabled, scheduleRefresh]);
+
+  useEffect(() => {
+    if (!realtimeEnabled) {
+      return undefined;
+    }
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        scheduleRefresh();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [realtimeEnabled, scheduleRefresh]);
+
+  useEffect(() => {
+    if (!liveFallbackIntervalMs) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => {
+      refreshQuietly();
+    }, liveFallbackIntervalMs);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [liveFallbackIntervalMs, refreshQuietly]);
 
   useEffect(
     () => () => {

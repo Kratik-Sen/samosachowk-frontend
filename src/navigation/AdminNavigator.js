@@ -10,6 +10,7 @@ import AdminVendorsScreen from '../screens/admin/AdminVendorsScreen';
 import AdminAnalyticsScreen from '../screens/admin/AdminAnalyticsScreen';
 import AdminLogoutScreen from '../screens/admin/AdminLogoutScreen';
 import { useApiResource } from '../hooks/useApiResource';
+import { useRealtimeActionSound } from '../hooks/useRealtimeNotificationSound';
 
 const Drawer = createDrawerNavigator();
 const attentionOrderStatuses = ['Pending', 'Ready', 'Out for Delivery'];
@@ -37,6 +38,13 @@ const AdminNavigator = () => {
     (member) => member.passwordResetRequested || (member.role !== 'vendor' && member.status === 'pending')
   ).length;
   const ordersBadge = (orders.data || []).filter((order) => attentionOrderStatuses.includes(order.status)).length;
+
+  useRealtimeActionSound({
+    actions: ['created', 'verified', 'production-started', 'ready', 'delivery-assigned', 'status-updated'],
+    entity: 'order',
+    sound: 'order',
+  });
+  useRealtimeActionSound({ actions: ['accepted', 'delivered'], entity: 'delivery', sound: 'delivery' });
 
   return (
     <Drawer.Navigator

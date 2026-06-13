@@ -7,7 +7,7 @@ import QuantityTrackingScreen from '../screens/production/QuantityTrackingScreen
 import TeamAssignmentScreen from '../screens/production/TeamAssignmentScreen';
 import ProfileScreen from '../screens/vendor/ProfileScreen';
 import { useApiResource } from '../hooks/useApiResource';
-import { useRealtimeActionSound } from '../hooks/useRealtimeNotificationSound';
+import { useDataArrivalSound } from '../hooks/useDataArrivalSound';
 
 const Tab = createBottomTabNavigator();
 const badgeValue = (count) => (count > 99 ? '99+' : count || undefined);
@@ -16,7 +16,12 @@ const ProductionNavigator = () => {
   const orders = useApiResource('/production/orders', []);
   const trackingBadge = (orders.data || []).filter((order) => order.status === 'Verified').length;
 
-  useRealtimeActionSound({ actions: ['verified'], sound: 'dot' });
+  useDataArrivalSound({
+    items: orders.data || [],
+    isLoading: orders.isLoading,
+    sound: 'dot',
+    shouldWatch: (order) => order.status === 'Verified',
+  });
 
   return (
     <Tab.Navigator

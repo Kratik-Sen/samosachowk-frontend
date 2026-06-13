@@ -7,7 +7,7 @@ import DeliveryTrackingScreen from '../screens/delivery/DeliveryTrackingScreen';
 import PaymentCollectionScreen from '../screens/delivery/PaymentCollectionScreen';
 import ProfileScreen from '../screens/vendor/ProfileScreen';
 import { useApiResource } from '../hooks/useApiResource';
-import { useSocketEventSound } from '../hooks/useRealtimeNotificationSound';
+import { useDataArrivalSound } from '../hooks/useDataArrivalSound';
 
 const Tab = createBottomTabNavigator();
 const badgeValue = (count) => (count > 99 ? '99+' : count || undefined);
@@ -20,7 +20,12 @@ const DeliveryNavigator = () => {
     (delivery) => delivery.order?.payment_method === 'COD' && !delivery.payment_collected
   ).length;
 
-  useSocketEventSound({ eventName: 'delivery:assigned', sound: 'delivery' });
+  useDataArrivalSound({
+    items: deliveries.data || [],
+    isLoading: deliveries.isLoading,
+    sound: 'delivery',
+    shouldWatch: (delivery) => delivery.status === 'Assigned',
+  });
 
   return (
     <Tab.Navigator

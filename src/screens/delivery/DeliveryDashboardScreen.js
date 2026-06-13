@@ -6,6 +6,7 @@ import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, S
 import { API_URL, useAuth } from '../../context/AuthContext';
 import { colors, formatMoney, images } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
+import { getDeliveryStopSubtitle, getVendorContactText } from '../../utils/deliveryContact';
 
 const DeliveryDashboardScreen = () => {
   const navigation = useNavigation();
@@ -132,7 +133,7 @@ const DeliveryDashboardScreen = () => {
           <InfoCard
             key={run._id}
             title={`${run._id?.slice(-6).toUpperCase()} - ${run.order?.customer_name || 'Delivery'}`}
-            subtitle={run.order?.delivery_address?.location || run.notes || 'No address note'}
+            subtitle={getDeliveryStopSubtitle(run.order, run.notes || 'No address note')}
             right={formatMoney(run.order?.final_amount)}
             status={run.status}
             icon="truck-delivery-outline"
@@ -147,6 +148,7 @@ const DeliveryDashboardScreen = () => {
             <Text style={styles.modalText}>
               {promptRun?.order?.customer_name || 'Vendor'} - {promptRun?.order?.delivery_address?.location || 'Outlet address'}
             </Text>
+            <Text style={styles.modalContact}>{getVendorContactText(promptRun?.order)}</Text>
             <Text style={styles.modalAmount}>{formatMoney(promptRun?.order?.final_amount)}</Text>
             <PrimaryButton
               label="Receive Order"
@@ -247,6 +249,13 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
     fontWeight: '700',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  modalContact: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '900',
     lineHeight: 20,
     marginBottom: 8,
   },

@@ -7,19 +7,21 @@ import VendorListScreen from '../screens/sales/VendorListScreen';
 import OrderVerificationScreen from '../screens/sales/OrderVerificationScreen';
 import ProfileScreen from '../screens/vendor/ProfileScreen'; // Reusable profile
 import { useApiResource } from '../hooks/useApiResource';
-import { useRealtimeActionSound } from '../hooks/useRealtimeNotificationSound';
+import { useDataArrivalSound } from '../hooks/useDataArrivalSound';
 
 const Tab = createBottomTabNavigator();
 const badgeValue = (count) => (count > 99 ? '99+' : count || undefined);
 
 const SalesNavigator = () => {
-  const dashboard = useApiResource('/sales/dashboard', {
-    pendingOrders: 0,
-    readyOrders: 0,
-  });
-  const verifyOrdersBadge = Number(dashboard.data?.pendingOrders || 0) + Number(dashboard.data?.readyOrders || 0);
+  const verifyOrders = useApiResource('/orders?status=Pending,Ready', []);
+  const verifyOrdersBadge = (verifyOrders.data || []).length;
 
-  useRealtimeActionSound({ actions: ['created', 'ready'], sound: 'dot' });
+  useDataArrivalSound({
+    items: verifyOrders.data || [],
+    isLoading: verifyOrders.isLoading,
+    sound: 'dot',
+    shouldWatch: (order) => ['Pending', 'Ready'].includes(order.status),
+  });
 
   return (
     <Tab.Navigator
