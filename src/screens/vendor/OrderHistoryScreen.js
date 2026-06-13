@@ -5,8 +5,8 @@ import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, S
 import GoogleRouteMap from '../../components/GoogleRouteMap';
 import { colors, formatMoney, images } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
-import { API_URL, useAuth } from '../../context/AuthContext';
-import { createTrackingSocket } from '../../utils/socket';
+import { API_URL } from '../../context/AuthContext';
+import { useRealtime } from '../../context/RealtimeContext';
 import { getCurrentVendorLocation } from '../../utils/vendorLocation';
 import { estimateRouteInfo } from '../../utils/routeMetrics';
 import { canRenderNativeMap, nativeMapSetupMessage } from '../../utils/nativeMaps';
@@ -32,7 +32,7 @@ const NativeMarkerIcon = ({ source }) => (
 );
 
 const OrderHistoryScreen = () => {
-  const { user } = useAuth();
+  const { socket } = useRealtime();
   const orders = useApiResource('/vendors/orders?scope=active', []);
   const [liveLocations, setLiveLocations] = useState({});
   const [message, setMessage] = useState('');
@@ -60,11 +60,10 @@ const OrderHistoryScreen = () => {
   const canRenderMap = trackedOrder && (Platform.OS === 'web' ? vendorLocation : vendorCoordinate);
 
   useEffect(() => {
-    if (!user?.token) {
+    if (!socket) {
       return undefined;
     }
 
-    const socket = createTrackingSocket(user.token);
     const trackedDeliveryId = trackedOrder?.delivery?._id;
     const trackedOrderId = trackedOrder?._id;
 
@@ -108,13 +107,16 @@ const OrderHistoryScreen = () => {
       }
     };
 
+    const handleDeliveryAssigned = () => {
+      orders.refetch();
+    };
+    const handleDeliveryStatus = () => {
+      orders.refetch();
+    };
+
     socket.on('connect', joinTrackingRoom);
-    socket.on('delivery:assigned', () => {
-      orders.refetch();
-    });
-    socket.on('delivery:status', () => {
-      orders.refetch();
-    });
+    socket.on('delivery:assigned', handleDeliveryAssigned);
+    socket.on('delivery:status', handleDeliveryStatus);
     socket.on('tracking:snapshot', applyTrackingPayload);
     socket.on('delivery:location', applyTrackingPayload);
     socket.on('vendor:location', applyTrackingPayload);
@@ -124,13 +126,18 @@ const OrderHistoryScreen = () => {
     }
 
     return () => {
+      socket.off('connect', joinTrackingRoom);
+      socket.off('delivery:assigned', handleDeliveryAssigned);
+      socket.off('delivery:status', handleDeliveryStatus);
+      socket.off('tracking:snapshot', applyTrackingPayload);
+      socket.off('delivery:location', applyTrackingPayload);
+      socket.off('vendor:location', applyTrackingPayload);
+
       if (trackedDeliveryId) {
         socket.emit('tracking:leave', { deliveryId: trackedDeliveryId });
       }
-
-      socket.disconnect();
     };
-  }, [user?.token, trackedOrder?._id, trackedOrder?.delivery?._id, orders.refetch]);
+  }, [socket, trackedOrder?._id, trackedOrder?.delivery?._id, orders.refetch]);
 
   const saveCurrentVendorLocation = async () => {
     if (!trackedOrder?._id) {

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { useCallback, useEffect } from 'react';
+import { preload, setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 
 const soundSources = {
   order: require('../../assets/order.mp3'),
@@ -7,51 +7,74 @@ const soundSources = {
   delivery: require('../../assets/delivery.mp3'),
 };
 
-let audioModeReady = false;
+const preloadSoundSource = (source) => {
+  try {
+    const preloadResult = preload(source);
+
+    if (preloadResult?.catch) {
+      preloadResult.catch(() => {});
+    }
+  } catch {
+    // The managed player below still loads the asset if eager preload is unavailable.
+  }
+};
+
+Object.values(soundSources).forEach(preloadSoundSource);
+
+let audioModePromise = null;
 
 const ensureAudioMode = () => {
-  if (audioModeReady) {
-    return;
+  if (!audioModePromise) {
+    audioModePromise = setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: 'mixWithOthers',
+    }).catch((error) => {
+      audioModePromise = null;
+      throw error;
+    });
   }
 
-  audioModeReady = true;
-  setAudioModeAsync({ playsInSilentMode: true }).catch(() => {
-    audioModeReady = false;
-  });
+  return audioModePromise;
 };
 
 export const useNotificationSound = (soundName) => {
-  const playerRef = useRef(null);
+  const source = soundSources[soundName] || null;
+  const player = useAudioPlayer(source, {
+    downloadFirst: true,
+    keepAudioSessionActive: true,
+  });
 
   useEffect(() => {
-    const source = soundSources[soundName];
-
     if (!source) {
       return undefined;
     }
 
-    ensureAudioMode();
-    const player = createAudioPlayer(source);
-    playerRef.current = player;
+    ensureAudioMode().catch((error) => {
+      console.warn('Unable to prepare notification audio', error);
+    });
 
-    return () => {
-      playerRef.current = null;
-      player.release();
-    };
-  }, [soundName]);
+    return undefined;
+  }, [source]);
 
-  return useCallback(() => {
-    const player = playerRef.current;
-
-    if (!player) {
+  return useCallback(async () => {
+    if (!source || !player) {
       return;
     }
 
     try {
-      player.seekTo(0);
+      await ensureAudioMode();
+
+      if (player.playing) {
+        player.pause();
+      }
+
+      if (player.isLoaded) {
+        await player.seekTo(0);
+      }
+
       player.play();
     } catch (error) {
       console.warn('Unable to play notification sound', error);
     }
-  }, []);
+  }, [player, source]);
 };

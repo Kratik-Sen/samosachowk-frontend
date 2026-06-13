@@ -4,10 +4,10 @@ import * as Location from 'expo-location';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, InfoCard, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import GoogleRouteMap from '../../components/GoogleRouteMap';
-import { API_URL, useAuth } from '../../context/AuthContext';
+import { API_URL } from '../../context/AuthContext';
+import { useRealtime } from '../../context/RealtimeContext';
 import { colors, images } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
-import { createTrackingSocket } from '../../utils/socket';
 import { estimateRouteInfo } from '../../utils/routeMetrics';
 import { canRenderNativeMap, nativeMapSetupMessage } from '../../utils/nativeMaps';
 import { useGoogleRoadRoute } from '../../hooks/useGoogleRoadRoute';
@@ -32,7 +32,7 @@ const NativeMarkerIcon = ({ source }) => (
 );
 
 const DeliveryTrackingScreen = () => {
-  const { user } = useAuth();
+  const { socket } = useRealtime();
   const deliveries = useApiResource('/delivery/dashboard?scope=active', []);
   const [localLocations, setLocalLocations] = useState({});
   const [busyId, setBusyId] = useState('');
@@ -143,11 +143,10 @@ const DeliveryTrackingScreen = () => {
   };
 
   useEffect(() => {
-    if (!user?.token) {
+    if (!socket) {
       return undefined;
     }
 
-    const socket = createTrackingSocket(user.token);
     const activeRunId = activeRun?._id;
     const handleLocation = (payload) => {
       if (payload?.deliveryId === activeRunId) {
@@ -160,28 +159,39 @@ const DeliveryTrackingScreen = () => {
         }
       }
     };
-
-    socket.on('connect', () => {
+    const joinTrackingRoom = () => {
       if (activeRunId) {
         socket.emit('tracking:join', { deliveryId: activeRunId });
       }
-    });
-    socket.on('delivery:assigned', () => {
+    };
+    const handleDeliveryAssigned = () => {
       deliveries.refetch();
-    });
+    };
+
+    socket.on('connect', joinTrackingRoom);
+    socket.on('delivery:assigned', handleDeliveryAssigned);
     socket.on('tracking:snapshot', handleLocation);
     socket.on('delivery:location', handleLocation);
     socket.on('vendor:location', handleLocation);
     socket.on('delivery:status', applyDeliveryStatus);
 
+    if (socket.connected) {
+      joinTrackingRoom();
+    }
+
     return () => {
+      socket.off('connect', joinTrackingRoom);
+      socket.off('delivery:assigned', handleDeliveryAssigned);
+      socket.off('tracking:snapshot', handleLocation);
+      socket.off('delivery:location', handleLocation);
+      socket.off('vendor:location', handleLocation);
+      socket.off('delivery:status', applyDeliveryStatus);
+
       if (activeRunId) {
         socket.emit('tracking:leave', { deliveryId: activeRunId });
       }
-
-      socket.disconnect();
     };
-  }, [user?.token, activeRun?._id, deliveries.refetch]);
+  }, [socket, activeRun?._id, deliveries.refetch]);
 
   useEffect(() => {
     if (!activeRun || activeRun.status === 'Assigned') {

@@ -4,6 +4,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 import { AuthProvider } from './src/context/AuthContext';
+import { RealtimeProvider } from './src/context/RealtimeContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { colors } from './src/theme/brand';
 
@@ -11,12 +12,14 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <SafeAreaView style={styles.safeRoot} edges={['bottom', 'left', 'right']}>
-          <NavigationContainer>
-            <StatusBar style="dark" backgroundColor={colors.cream} />
-            <RootNavigator />
-          </NavigationContainer>
-        </SafeAreaView>
+        <RealtimeProvider>
+          <SafeAreaView style={styles.safeRoot} edges={['bottom', 'left', 'right']}>
+            <NavigationContainer>
+              <StatusBar style="dark" backgroundColor={colors.cream} />
+              <RootNavigator />
+            </NavigationContainer>
+          </SafeAreaView>
+        </RealtimeProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

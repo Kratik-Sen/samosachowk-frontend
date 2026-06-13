@@ -1,6 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { createTrackingSocket } from '../utils/socket';
+import { useCallback, useMemo, useRef } from 'react';
+import { useRealtimeEvent } from '../context/RealtimeContext';
 import { useNotificationSound } from './useNotificationSound';
 
 const rememberEvent = (seenEvents, eventKey) => {
@@ -22,20 +21,13 @@ const rememberEvent = (seenEvents, eventKey) => {
 };
 
 export const useRealtimeActionSound = ({ actions = [], entity = 'order', sound = 'dot', enabled = true }) => {
-  const { user } = useAuth();
   const playSound = useNotificationSound(sound);
   const seenEventsRef = useRef(new Set());
   const actionsKey = actions.join('|');
+  const actionSet = useMemo(() => new Set(actions), [actionsKey]);
 
-  useEffect(() => {
-    if (!enabled || !user?.token || !actions.length) {
-      return undefined;
-    }
-
-    const socket = createTrackingSocket(user.token);
-    const actionSet = new Set(actions);
-
-    const handleResourceChanged = (payload = {}) => {
+  const handleResourceChanged = useCallback(
+    (payload = {}) => {
       if (!actionSet.has(payload.action)) {
         return;
       }
@@ -49,29 +41,19 @@ export const useRealtimeActionSound = ({ actions = [], entity = 'order', sound =
       if (rememberEvent(seenEventsRef.current, eventKey)) {
         playSound();
       }
-    };
+    },
+    [actionSet, entity, playSound]
+  );
 
-    socket.on('resource:changed', handleResourceChanged);
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [enabled, user?.token, actionsKey, entity, playSound]);
+  useRealtimeEvent('resource:changed', handleResourceChanged, Boolean(enabled && actions.length));
 };
 
 export const useSocketEventSound = ({ eventName, sound = 'dot', enabled = true, getEventKey }) => {
-  const { user } = useAuth();
   const playSound = useNotificationSound(sound);
   const seenEventsRef = useRef(new Set());
 
-  useEffect(() => {
-    if (!enabled || !user?.token || !eventName) {
-      return undefined;
-    }
-
-    const socket = createTrackingSocket(user.token);
-
-    const handleSocketEvent = (payload = {}) => {
+  const handleSocketEvent = useCallback(
+    (payload = {}) => {
       const eventKey = getEventKey
         ? getEventKey(payload)
         : `${eventName}:${payload.deliveryId || payload.orderId || payload.entityId || payload.updatedAt}`;
@@ -79,12 +61,9 @@ export const useSocketEventSound = ({ eventName, sound = 'dot', enabled = true, 
       if (rememberEvent(seenEventsRef.current, eventKey)) {
         playSound();
       }
-    };
+    },
+    [eventName, getEventKey, playSound]
+  );
 
-    socket.on(eventName, handleSocketEvent);
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [enabled, user?.token, eventName, playSound, getEventKey]);
+  useRealtimeEvent(eventName, handleSocketEvent, Boolean(enabled && eventName));
 };

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { API_URL, useAuth } from '../context/AuthContext';
-import { createTrackingSocket } from '../utils/socket';
+import { useRealtimeEvent } from '../context/RealtimeContext';
 
 const pathDomains = [
   { test: (path) => path.startsWith('/admin/overview'), domains: ['admin', 'orders', 'products', 'users', 'vendors', 'deliveries', 'wallet', 'production'] },
@@ -40,6 +40,9 @@ export const useApiResource = (path, initialValue = null, options = {}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const liveDomains = getLiveDomains(path, options);
+  const liveDomainsKey = liveDomains.join('|');
+  const realtimeEnabled = Boolean(user?.token && liveDomains.length && options.enabled !== false);
+  const refreshTimerRef = useRef(null);
 
   const fetchData = useCallback(async () => {
     if (!path || options.enabled === false) {
@@ -77,15 +80,8 @@ export const useApiResource = (path, initialValue = null, options = {}) => {
     fetchData();
   }, [fetchData]);
 
-  useEffect(() => {
-    if (!user?.token || !liveDomains.length || options.enabled === false) {
-      return undefined;
-    }
-
-    const socket = createTrackingSocket(user.token);
-    let refreshTimer;
-
-    const scheduleRefresh = (payload = {}) => {
+  const scheduleRefresh = useCallback(
+    (payload = {}) => {
       const changedDomains = payload.domains || [];
       const shouldRefresh =
         !changedDomains.length || liveDomains.some((domain) => changedDomains.includes(domain));
@@ -94,19 +90,28 @@ export const useApiResource = (path, initialValue = null, options = {}) => {
         return;
       }
 
-      clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
         refreshQuietly();
       }, 250);
-    };
+    },
+    [refreshQuietly, liveDomainsKey]
+  );
 
-    socket.on('resource:changed', scheduleRefresh);
+  useRealtimeEvent(
+    'resource:changed',
+    scheduleRefresh,
+    realtimeEnabled
+  );
 
-    return () => {
-      clearTimeout(refreshTimer);
-      socket.disconnect();
-    };
-  }, [user?.token, refreshQuietly, options.enabled, liveDomains.join('|')]);
+  useRealtimeEvent('connect', scheduleRefresh, realtimeEnabled);
+
+  useEffect(
+    () => () => {
+      clearTimeout(refreshTimerRef.current);
+    },
+    []
+  );
 
   return { data, setData, isLoading, error, refetch: fetchData };
 };
