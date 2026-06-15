@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, FoodCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
@@ -7,17 +8,20 @@ import { API_URL } from '../../context/AuthContext';
 import { colors, images } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 
+const initialForm = {
+  name: '',
+  category: '',
+  price: '',
+  description: '',
+  packages: '',
+  stock: '',
+};
+
 const AdminProductsScreen = () => {
   const products = useApiResource('/products?status=Active', []);
   const lowStock = (products.data || []).filter((product) => Number(product.stock || 0) <= 10).length;
-  const [form, setForm] = useState({
-    name: '',
-    category: '',
-    price: '',
-    description: '',
-    packages: '',
-    stock: '',
-  });
+  const [form, setForm] = useState(initialForm);
+  const [editingProduct, setEditingProduct] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [message, setMessage] = useState('');
@@ -25,6 +29,28 @@ const AdminProductsScreen = () => {
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const resetForm = () => {
+    setForm(initialForm);
+    setEditingProduct(null);
+    setImageFile(null);
+    setImagePreview('');
+  };
+
+  const editProduct = (product) => {
+    setEditingProduct(product);
+    setForm({
+      name: product.name || '',
+      category: product.category || '',
+      price: product.price !== undefined ? String(product.price) : '',
+      description: product.description || '',
+      packages: Array.isArray(product.packages) ? product.packages.join(', ') : product.packages || '',
+      stock: product.stock !== undefined ? String(product.stock) : '',
+    });
+    setImageFile(null);
+    setImagePreview(product.image || '');
+    setMessage(`Editing ${product.name}`);
   };
 
   const chooseWebImage = () => {
@@ -77,7 +103,7 @@ const AdminProductsScreen = () => {
     chooseNativeImage();
   };
 
-  const createProduct = async () => {
+  const saveProduct = async () => {
     if (isSubmitting) {
       return;
     }
@@ -104,24 +130,59 @@ const AdminProductsScreen = () => {
         payload.append('image', imageFile);
       }
 
-      await axios.post(`${API_URL}/products`, payload);
-      setForm({
-        name: '',
-        category: '',
-        price: '',
-        description: '',
-        packages: '',
-        stock: '',
-      });
-      setImageFile(null);
-      setImagePreview('');
+      if (editingProduct?._id) {
+        await axios.put(`${API_URL}/products/${editingProduct._id}`, payload);
+      } else {
+        await axios.post(`${API_URL}/products`, payload);
+      }
+
+      resetForm();
       await products.refetch();
-      setMessage('Menu item added.');
+      setMessage(editingProduct?._id ? 'Menu item updated.' : 'Menu item added.');
     } catch (error) {
-      setMessage(error.response?.data?.message || 'Unable to add menu item');
+      setMessage(error.response?.data?.message || 'Unable to save menu item');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const removeProduct = async (product) => {
+    if (isSubmitting) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setMessage('');
+      await axios.delete(`${API_URL}/products/${product._id}`);
+
+      if (editingProduct?._id === product._id) {
+        resetForm();
+      }
+
+      await products.refetch();
+      setMessage(`${product.name} removed from active menu.`);
+    } catch (error) {
+      setMessage(error.response?.data?.message || 'Unable to remove menu item');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const confirmRemoveProduct = (product) => {
+    const messageText = `Remove ${product.name} from the active menu? Past orders and invoices will still keep its details.`;
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(messageText)) {
+        removeProduct(product);
+      }
+      return;
+    }
+
+    Alert.alert('Remove product', messageText, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => removeProduct(product) },
+    ]);
   };
 
   return (
@@ -141,7 +202,7 @@ const AdminProductsScreen = () => {
         ]}
       />
 
-      <SectionTitle title="Add Menu Item" action="Cloudinary" />
+      <SectionTitle title={editingProduct ? 'Edit Menu Item' : 'Add Menu Item'} action={editingProduct ? 'Update' : 'Cloudinary'} />
       <View style={styles.form}>
         <TextInput
           value={form.name}
@@ -194,18 +255,42 @@ const AdminProductsScreen = () => {
         </Pressable>
         {!!message && <Text style={styles.message}>{message}</Text>}
         <PrimaryButton
-          label="Add Menu Item"
-          icon="cloud-upload"
-          onPress={createProduct}
+          label={editingProduct ? 'Update Menu Item' : 'Add Menu Item'}
+          icon={editingProduct ? 'content-save' : 'cloud-upload'}
+          onPress={saveProduct}
           loading={isSubmitting}
-          loadingLabel="Uploading..."
+          loadingLabel={editingProduct ? 'Updating...' : 'Uploading...'}
         />
+        {editingProduct && (
+          <Pressable style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]} onPress={resetForm}>
+            <MaterialCommunityIcons name="close-circle-outline" size={18} color={colors.ink} />
+            <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+          </Pressable>
+        )}
       </View>
 
-      <SectionTitle title="Products" action="Edit" />
+      <SectionTitle title="Products" action="Manage" />
       <DataState isLoading={products.isLoading} error={products.error} empty={!products.data?.length}>
         {(products.data || []).map((item) => (
-          <FoodCard key={item._id} item={item} />
+          <View key={item._id} style={styles.productBlock}>
+            <FoodCard item={item} onPress={() => editProduct(item)} />
+            <View style={styles.productActions}>
+              <Pressable
+                style={({ pressed }) => [styles.productActionButton, pressed && styles.pressed]}
+                onPress={() => editProduct(item)}
+              >
+                <MaterialCommunityIcons name="pencil" size={18} color={colors.ink} />
+                <Text style={styles.productActionText}>Edit</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.productActionButton, styles.removeButton, pressed && styles.pressed]}
+                onPress={() => confirmRemoveProduct(item)}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.white} />
+                <Text style={[styles.productActionText, styles.removeButtonText]}>Remove</Text>
+              </Pressable>
+            </View>
+          </View>
         ))}
       </DataState>
     </AppScreen>
@@ -266,6 +351,52 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.84,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  cancelButtonText: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  productBlock: {
+    marginBottom: 14,
+  },
+  productActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: -2,
+  },
+  productActionButton: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 42,
+  },
+  productActionText: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  removeButton: {
+    backgroundColor: colors.red,
+    borderColor: colors.red,
+  },
+  removeButtonText: {
+    color: colors.white,
   },
 });
 

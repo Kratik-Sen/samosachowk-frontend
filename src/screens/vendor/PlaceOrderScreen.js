@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRoute } from '@react-navigation/native';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, FoodCard, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL, useAuth } from '../../context/AuthContext';
@@ -27,13 +28,15 @@ const loadRazorpayWebScript = () =>
     document.body.appendChild(script);
   });
 
-const GST_RATE_PERCENT = 18;
+const GST_RATE_PERCENT = 5;
 const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
 
 const PlaceOrderScreen = () => {
+  const route = useRoute();
   const { user } = useAuth();
   const products = useApiResource('/products', []);
   const playOrderSound = useNotificationSound('order');
+  const appliedReorderKeyRef = useRef('');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [quantities, setQuantities] = useState({});
@@ -73,6 +76,41 @@ const PlaceOrderScreen = () => {
   const billTotal = roundMoney(subtotal + gstAmount);
   const totalUnits = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const isBulkOrder = orderType === 'Bulk' || totalUnits >= 50;
+
+  useEffect(() => {
+    const reorderItems = route.params?.reorderItems;
+    const reorderKey = `${route.params?.reorderSourceOrderId || 'order'}:${route.params?.reorderAt || ''}`;
+
+    if (
+      !Array.isArray(reorderItems) ||
+      !reorderItems.length ||
+      !products.data?.length ||
+      appliedReorderKeyRef.current === reorderKey
+    ) {
+      return;
+    }
+
+    const activeProductIds = new Set((products.data || []).map((product) => product._id));
+    const nextQuantities = reorderItems.reduce((acc, item) => {
+      if (item.productId && activeProductIds.has(item.productId)) {
+        acc[item.productId] = (acc[item.productId] || 0) + Math.max(1, Number(item.quantity || 1));
+      }
+
+      return acc;
+    }, {});
+
+    appliedReorderKeyRef.current = reorderKey;
+    setSearch('');
+    setCategory('All');
+
+    if (Object.keys(nextQuantities).length) {
+      setQuantities(nextQuantities);
+      setMessage(`Bill prepared from order ${route.params?.reorderSourceOrderId?.slice(-6).toUpperCase() || ''}.`);
+      return;
+    }
+
+    setMessage('The products from that past order are not active in the menu now.');
+  }, [products.data, route.params]);
 
   const changeQuantity = (productId, delta) => {
     setQuantities((current) => ({

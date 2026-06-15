@@ -1,26 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { AppScreen, DataState, InfoCard, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL, useAuth } from '../../context/AuthContext';
 import { colors, formatMoney, imageSource, images } from '../../theme/brand';
+import { downloadOrderInvoice } from '../../utils/invoice';
+import { formatOrderDate, getOrderImage, getOrderShortId, summarizeOrderItems } from '../../utils/orderDisplay';
 
 const HISTORY_PAGE_SIZE = 8;
-
-const summarizeItems = (order) =>
-  (order.items || []).map((item) => `${item.name} x ${item.quantity}`).join(', ');
-
-const formatHistoryDate = (value) => {
-  if (!value) {
-    return 'Recent';
-  }
-
-  return new Date(value).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-};
 
 const ProfileScreen = () => {
   const { user, logout } = useAuth();
@@ -31,6 +19,8 @@ const ProfileScreen = () => {
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [isHistoryLoadingMore, setIsHistoryLoadingMore] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [invoiceMessage, setInvoiceMessage] = useState('');
+  const [invoiceBusyId, setInvoiceBusyId] = useState('');
   const isMountedRef = useRef(true);
 
   useEffect(() => () => {
@@ -99,6 +89,24 @@ const ProfileScreen = () => {
     }
   };
 
+  const downloadInvoice = async (order) => {
+    if (invoiceBusyId) {
+      return;
+    }
+
+    try {
+      setInvoiceBusyId(order._id);
+      const result = await downloadOrderInvoice(order);
+      setInvoiceMessage(result);
+    } catch (error) {
+      setInvoiceMessage(error.message || 'Unable to download invoice.');
+    } finally {
+      if (isMountedRef.current) {
+        setInvoiceBusyId('');
+      }
+    }
+  };
+
   return (
     <AppScreen>
       <View style={styles.content}>
@@ -116,20 +124,36 @@ const ProfileScreen = () => {
 
         <View style={styles.historySection}>
           <SectionTitle title="Order History" action="Last 20 days" />
+          {!!invoiceMessage && <Text style={styles.historyMessage}>{invoiceMessage}</Text>}
           <DataState
             isLoading={isHistoryLoading && !history.length}
             error={!history.length ? historyError : ''}
             empty={!history.length}
           >
             {history.map((order) => (
-              <InfoCard
-                key={order._id}
-                title={`${order._id?.slice(-6).toUpperCase()} - ${order.customer_name}`}
-                subtitle={`${formatHistoryDate(order.updatedAt)} - ${summarizeItems(order) || 'No item details'}`}
-                right={formatMoney(order.final_amount)}
-                status={order.status}
-                icon="history"
-              />
+              <View key={order._id} style={styles.historyOrderBlock}>
+                <InfoCard
+                  title={`${getOrderShortId(order)} - ${order.customer_name}`}
+                  subtitle={`${formatOrderDate(order.updatedAt)} - ${summarizeOrderItems(order) || 'No item details'}`}
+                  right={formatMoney(order.final_amount)}
+                  status={order.status}
+                  image={getOrderImage(order)}
+                />
+                <Pressable
+                  disabled={invoiceBusyId === order._id}
+                  style={({ pressed }) => [
+                    styles.invoiceButton,
+                    pressed && styles.pressed,
+                    invoiceBusyId === order._id && styles.disabled,
+                  ]}
+                  onPress={() => downloadInvoice(order)}
+                >
+                  <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.white} />
+                  <Text style={styles.invoiceButtonText}>
+                    {invoiceBusyId === order._id ? 'Preparing...' : 'Invoice PDF'}
+                  </Text>
+                </Pressable>
+              </View>
             ))}
           </DataState>
           {!!historyError && history.length > 0 && <Text style={styles.historyError}>{historyError}</Text>}
@@ -210,6 +234,33 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 12,
     textAlign: 'center',
+  },
+  historyMessage: {
+    color: colors.redDark,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  historyOrderBlock: {
+    marginBottom: 14,
+  },
+  invoiceButton: {
+    alignItems: 'center',
+    backgroundColor: colors.red,
+    borderColor: colors.red,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    marginTop: -2,
+    minHeight: 42,
+  },
+  invoiceButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '900',
   },
   label: {
     color: colors.softText,

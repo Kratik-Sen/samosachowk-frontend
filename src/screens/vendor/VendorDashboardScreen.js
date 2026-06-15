@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { AppScreen, BrandHero, DataState, FoodCard, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { colors, formatMoney } from '../../theme/brand';
 import { useAuth } from '../../context/AuthContext';
 import { useApiResource } from '../../hooks/useApiResource';
+import { downloadOrderInvoice } from '../../utils/invoice';
+import { formatOrderDate, getOrderImage, getOrderShortId, getReorderItems, summarizeOrderItems } from '../../utils/orderDisplay';
 
 const VendorDashboardScreen = () => {
   const navigation = useNavigation();
@@ -17,11 +20,14 @@ const VendorDashboardScreen = () => {
     pendingOrders: 0,
     rewardPoints: 0,
   });
-  const products = useApiResource('/products', []);
   const orders = useApiResource('/vendors/orders?scope=active', []);
+  const reorderHistory = useApiResource('/orders/history?limit=3', { orders: [] });
   const dashboardData = dashboard.data || {};
+  const pastOrders = reorderHistory.data?.orders || [];
   const [locationPrompt, setLocationPrompt] = useState(null);
   const [dismissedPromptIds, setDismissedPromptIds] = useState({});
+  const [invoiceBusyId, setInvoiceBusyId] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
 
   const onTheWayOrder = useMemo(
     () =>
@@ -50,6 +56,78 @@ const VendorDashboardScreen = () => {
     navigation.navigate('History');
   };
 
+  const reorderFromPastOrder = (order) => {
+    const reorderItems = getReorderItems(order);
+
+    if (!reorderItems.length) {
+      setActionMessage('This order has no active product reference to reorder.');
+      return;
+    }
+
+    setActionMessage('');
+    navigation.navigate('Place Order', {
+      reorderItems,
+      reorderSourceOrderId: order._id,
+      reorderAt: Date.now(),
+    });
+  };
+
+  const downloadInvoice = async (order) => {
+    if (invoiceBusyId) {
+      return;
+    }
+
+    try {
+      setInvoiceBusyId(order._id);
+      const result = await downloadOrderInvoice(order);
+      setActionMessage(result);
+    } catch (error) {
+      setActionMessage(error.message || 'Unable to download invoice.');
+    } finally {
+      setInvoiceBusyId('');
+    }
+  };
+
+  const renderOrderCard = (order, canReorder = false) => (
+    <View key={order._id} style={styles.orderBlock}>
+      <InfoCard
+        title={`${getOrderShortId(order)} - ${order.customer_name}`}
+        subtitle={`${formatOrderDate(order.updatedAt || order.createdAt)} - ${summarizeOrderItems(order) || 'No item details'}`}
+        right={formatMoney(order.final_amount)}
+        status={order.status}
+        image={getOrderImage(order)}
+        onPress={canReorder ? () => reorderFromPastOrder(order) : undefined}
+      />
+      <View style={styles.orderActions}>
+        {canReorder && (
+          <Pressable
+            style={({ pressed }) => [styles.orderActionButton, pressed && styles.pressed]}
+            onPress={() => reorderFromPastOrder(order)}
+          >
+            <MaterialCommunityIcons name="cart-arrow-right" size={18} color={colors.ink} />
+            <Text style={styles.orderActionText}>Reorder</Text>
+          </Pressable>
+        )}
+        <Pressable
+          disabled={invoiceBusyId === order._id}
+          style={({ pressed }) => [
+            styles.orderActionButton,
+            styles.invoiceButton,
+            !canReorder && styles.orderActionButtonWide,
+            pressed && styles.pressed,
+            invoiceBusyId === order._id && styles.disabled,
+          ]}
+          onPress={() => downloadInvoice(order)}
+        >
+          <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.white} />
+          <Text style={[styles.orderActionText, styles.invoiceButtonText]}>
+            {invoiceBusyId === order._id ? 'Preparing...' : 'Invoice'}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
   return (
     <AppScreen>
       <BrandHero
@@ -67,11 +145,11 @@ const VendorDashboardScreen = () => {
         ]}
       />
 
-      <SectionTitle title="Fast Reorder" action="Menu" />
-      <DataState isLoading={products.isLoading} error={products.error} empty={!products.data?.length}>
-        {(products.data || []).slice(0, 2).map((item) => (
-          <FoodCard key={item._id} item={item} />
-        ))}
+      {!!actionMessage && <Text style={styles.message}>{actionMessage}</Text>}
+
+      <SectionTitle title="Reorder From Past" action="Last 3" />
+      <DataState isLoading={reorderHistory.isLoading} error={reorderHistory.error} empty={!pastOrders.length}>
+        {pastOrders.map((order) => renderOrderCard(order, true))}
       </DataState>
 
       <SectionTitle title="Recent Orders" />
@@ -80,16 +158,7 @@ const VendorDashboardScreen = () => {
         error={dashboard.error}
         empty={!dashboardData.recentOrders?.length}
       >
-        {(dashboardData.recentOrders || []).map((order) => (
-          <InfoCard
-            key={order._id}
-            title={`${order._id?.slice(-6).toUpperCase()} - ${order.customer_name}`}
-            subtitle={(order.items || []).map((item) => `${item.name} x ${item.quantity}`).join(', ')}
-            right={formatMoney(order.final_amount)}
-            status={order.status}
-            icon="clipboard-list-outline"
-          />
-        ))}
+        {(dashboardData.recentOrders || []).map((order) => renderOrderCard(order))}
       </DataState>
 
       <Modal transparent visible={!!locationPrompt} animationType="fade" onRequestClose={closePrompt}>
@@ -117,6 +186,53 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 18,
+  },
+  message: {
+    color: colors.redDark,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  orderBlock: {
+    marginBottom: 14,
+  },
+  orderActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: -2,
+  },
+  orderActionButton: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 42,
+    paddingHorizontal: 10,
+  },
+  orderActionButtonWide: {
+    flexGrow: 0,
+    width: '100%',
+  },
+  orderActionText: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  invoiceButton: {
+    backgroundColor: colors.red,
+    borderColor: colors.red,
+  },
+  invoiceButtonText: {
+    color: colors.white,
+  },
+  disabled: {
+    opacity: 0.55,
   },
   modalCard: {
     backgroundColor: colors.white,

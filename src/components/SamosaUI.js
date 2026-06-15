@@ -181,23 +181,39 @@ export const FoodCard = ({ item, onPress }) => (
   </Pressable>
 );
 
-export const InfoCard = ({ title, subtitle, right, icon = 'receipt-text-outline', status }) => (
-  <View style={styles.infoCard}>
-    <View style={styles.infoIcon}>
-      <MaterialCommunityIcons name={icon} size={22} color={colors.red} />
-    </View>
-    <View style={styles.infoMain}>
-      <Text style={styles.infoTitle}>{title}</Text>
-      {!!subtitle && <Text style={styles.infoSubtitle}>{subtitle}</Text>}
-      {!!status && (
-        <View style={styles.infoPillWrap}>
-          <StatusPill status={status} />
+export const InfoCard = ({ title, subtitle, right, icon = 'receipt-text-outline', image, onPress, status }) => {
+  const content = (
+    <>
+      {image ? (
+        <Image source={imageSource(image)} style={styles.infoImage} />
+      ) : (
+        <View style={styles.infoIcon}>
+          <MaterialCommunityIcons name={icon} size={22} color={colors.red} />
         </View>
       )}
-    </View>
-    {!!right && <Text style={styles.infoRight}>{right}</Text>}
-  </View>
-);
+      <View style={styles.infoMain}>
+        <Text style={styles.infoTitle}>{title}</Text>
+        {!!subtitle && <Text style={styles.infoSubtitle}>{subtitle}</Text>}
+        {!!status && (
+          <View style={styles.infoPillWrap}>
+            <StatusPill status={status} />
+          </View>
+        )}
+      </View>
+      {!!right && <Text style={styles.infoRight}>{right}</Text>}
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <Pressable style={({ pressed }) => [styles.infoCard, pressed && styles.pressed]} onPress={onPress}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.infoCard}>{content}</View>;
+};
 
 export const PrimaryButton = ({
   label,
@@ -546,6 +562,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
     width: 44,
+  },
+  infoImage: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    height: 54,
+    marginRight: 12,
+    width: 54,
   },
   infoMain: {
     flex: 1,
