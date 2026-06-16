@@ -2,7 +2,8 @@ import React from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors, imageSource, images } from '../../theme/brand';
+import { EntranceView } from '../../components/SamosaUI';
+import { colors, imageSource, images, shadows } from '../../theme/brand';
 
 export const roles = [
   {
@@ -62,7 +63,7 @@ const RoleSelectionScreen = ({ navigation }) => {
         contentContainerStyle={[styles.screenContent, compactLayout && styles.compactScreenContent]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.contentWrap}>
+        <EntranceView style={styles.contentWrap}>
           <View style={[styles.header, compactLayout && styles.compactHeader]}>
             <Image
               source={imageSource(images.logo)}
@@ -119,12 +120,12 @@ const RoleSelectionScreen = ({ navigation }) => {
                 <MaterialCommunityIcons
                   name="chevron-right"
                   size={compactLayout ? 18 : 22}
-                  color={role.key === 'admin' ? colors.white : colors.softText}
+                  color={role.key === 'admin' ? colors.onBrand : colors.softText}
                 />
               </Pressable>
             ))}
           </View>
-        </View>
+        </EntranceView>
       </ScrollView>
     </SafeAreaView>
   );
@@ -133,7 +134,7 @@ const RoleSelectionScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.appBg,
   },
   scroll: {
     flex: 1,
@@ -209,6 +210,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     minHeight: 86,
     padding: 14,
+    ...shadows.soft,
   },
   compactCard: {
     minHeight: 54,
@@ -220,8 +222,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   adminCard: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
+    backgroundColor: colors.red,
+    borderColor: colors.red,
   },
   icon: {
     alignItems: 'center',
@@ -249,7 +251,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   adminText: {
-    color: colors.white,
+    color: colors.onBrand,
   },
   roleDescription: {
     color: colors.muted,

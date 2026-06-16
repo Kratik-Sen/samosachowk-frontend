@@ -3,7 +3,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, Vi
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL } from '../../context/AuthContext';
-import { colors, images } from '../../theme/brand';
+import { colors, images, shadows } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 
 const initialForm = {
@@ -411,7 +411,7 @@ const AdminVendorsScreen = () => {
               onPress={() => verifyTeamRequest(member)}
             >
               {isVerifying ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onBrand} />
               ) : (
                 <Text style={styles.verifyText}>Verify</Text>
               )}
@@ -423,7 +423,7 @@ const AdminVendorsScreen = () => {
             onPress={() => deleteCredential(member._id)}
           >
             {isDeleting ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onBrand} />
             ) : (
               <Text style={styles.deleteText}>Delete</Text>
             )}
@@ -442,7 +442,7 @@ const AdminVendorsScreen = () => {
             <PrimaryButton
               label="Save New Password"
               icon="lock-reset"
-              tone={colors.ink}
+              tone={colors.black}
               onPress={() => resetMemberPassword(member)}
               disabled={(Boolean(busyAction) && !isPasswordSaving) || isSaving}
               loading={isPasswordSaving}
@@ -653,6 +653,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 18,
     padding: 12,
+    ...shadows.card,
   },
   input: {
     backgroundColor: colors.cream,
@@ -672,6 +673,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 10,
     overflow: 'hidden',
+    ...shadows.soft,
   },
   mapHeader: {
     alignItems: 'center',
@@ -732,6 +734,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 8,
+    ...shadows.soft,
   },
   roleChipActive: {
     backgroundColor: colors.red,
@@ -744,7 +747,7 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   roleTextActive: {
-    color: colors.white,
+    color: colors.onBrand,
   },
   message: {
     color: colors.redDark,
@@ -792,14 +795,14 @@ const styles = StyleSheet.create({
   },
   credentialSearchClear: {
     alignItems: 'center',
-    backgroundColor: colors.ink,
+    backgroundColor: colors.black,
     borderRadius: 8,
     justifyContent: 'center',
     minHeight: 44,
     paddingHorizontal: 12,
   },
   credentialSearchClearText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 12,
     fontWeight: '900',
   },
@@ -819,8 +822,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   credentialTabActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
+    backgroundColor: colors.black,
+    borderColor: colors.black,
   },
   credentialTabText: {
     color: colors.muted,
@@ -829,7 +832,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   credentialTabTextActive: {
-    color: colors.white,
+    color: colors.onBrand,
   },
   credentialTabBadge: {
     alignItems: 'center',
@@ -855,7 +858,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   credentialTabBadgeTextAlert: {
-    color: colors.white,
+    color: colors.onBrand,
   },
   credentialSection: {
     marginBottom: 18,
@@ -900,13 +903,13 @@ const styles = StyleSheet.create({
     marginTop: -6,
   },
   detailsButton: {
-    backgroundColor: colors.ink,
+    backgroundColor: colors.black,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
   detailsText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 12,
     fontWeight: '900',
   },
@@ -917,7 +920,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   editText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 12,
     fontWeight: '900',
   },
@@ -928,7 +931,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   resetText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 12,
     fontWeight: '900',
   },
@@ -939,7 +942,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   verifyText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 12,
     fontWeight: '900',
   },
@@ -950,7 +953,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   deleteText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 12,
     fontWeight: '900',
   },
@@ -985,6 +988,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 8,
     padding: 12,
+    ...shadows.soft,
   },
   detailPanel: {
     marginTop: 8,

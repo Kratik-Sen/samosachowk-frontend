@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL, useAuth } from '../../context/AuthContext';
-import { colors, formatMoney, images } from '../../theme/brand';
+import { colors, formatMoney, images, shadows } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 import { getDeliveryStopSubtitle, getVendorContactText } from '../../utils/deliveryContact';
 
@@ -178,6 +178,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
     padding: 14,
+    ...shadows.card,
   },
   availabilityTextBlock: {
     flex: 1,
@@ -238,6 +239,7 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     padding: 18,
     width: '100%',
+    ...shadows.card,
   },
   modalTitle: {
     color: colors.ink,

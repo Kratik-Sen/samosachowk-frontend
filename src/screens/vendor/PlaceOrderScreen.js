@@ -4,7 +4,7 @@ import { useRoute } from '@react-navigation/native';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, FoodCard, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL, useAuth } from '../../context/AuthContext';
-import { colors, formatMoney, images } from '../../theme/brand';
+import { colors, formatMoney, images, shadows } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 import { getCurrentVendorLocation } from '../../utils/vendorLocation';
 import { useNotificationSound } from '../../hooks/useNotificationSound';
@@ -37,6 +37,7 @@ const PlaceOrderScreen = () => {
   const products = useApiResource('/products', []);
   const playOrderSound = useNotificationSound('order');
   const appliedReorderKeyRef = useRef('');
+  const appliedProductFocusKeyRef = useRef('');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [quantities, setQuantities] = useState({});
@@ -76,6 +77,7 @@ const PlaceOrderScreen = () => {
   const billTotal = roundMoney(subtotal + gstAmount);
   const totalUnits = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const isBulkOrder = orderType === 'Bulk' || totalUnits >= 50;
+  const focusedProductId = route.params?.focusProductId || '';
 
   useEffect(() => {
     const reorderItems = route.params?.reorderItems;
@@ -110,6 +112,28 @@ const PlaceOrderScreen = () => {
     }
 
     setMessage('The products from that past order are not active in the menu now.');
+  }, [products.data, route.params]);
+
+  useEffect(() => {
+    const productId = route.params?.focusProductId;
+    const focusKey = `${productId || 'product'}:${route.params?.focusProductAt || ''}`;
+
+    if (!productId || !products.data?.length || appliedProductFocusKeyRef.current === focusKey) {
+      return;
+    }
+
+    const product = (products.data || []).find((item) => item._id === productId);
+    appliedProductFocusKeyRef.current = focusKey;
+    setCategory('All');
+
+    if (product) {
+      setSearch(product.name || '');
+      setMessage(`Ready to add ${product.name}.`);
+      return;
+    }
+
+    setSearch('');
+    setMessage('That product is not active in the menu right now.');
   }, [products.data, route.params]);
 
   const changeQuantity = (productId, delta) => {
@@ -169,20 +193,20 @@ const PlaceOrderScreen = () => {
     const response =
       Platform.OS === 'web'
         ? await new Promise(async (resolve, reject) => {
-            try {
-              await loadRazorpayWebScript();
-              const checkout = new window.Razorpay({
-                ...checkoutOptions,
-                handler: resolve,
-                modal: {
-                  ondismiss: () => reject(new Error('Razorpay payment was cancelled.')),
-                },
-              });
-              checkout.open();
-            } catch (error) {
-              reject(error);
-            }
-          })
+          try {
+            await loadRazorpayWebScript();
+            const checkout = new window.Razorpay({
+              ...checkoutOptions,
+              handler: resolve,
+              modal: {
+                ondismiss: () => reject(new Error('Razorpay payment was cancelled.')),
+              },
+            });
+            checkout.open();
+          } catch (error) {
+            reject(error);
+          }
+        })
         : await require('react-native-razorpay').default.open(checkoutOptions);
 
     return {
@@ -285,22 +309,58 @@ const PlaceOrderScreen = () => {
         ))}
       </View>
 
+      <SectionTitle title="Order Type" action={isBulkOrder ? 'Bulk' : 'Regular'} />
+      <View style={styles.paymentRow}>
+        {['Regular', 'Bulk'].map((type) => (
+          <Pressable
+            key={type}
+            style={[styles.paymentChip, orderType === type && styles.paymentChipActive]}
+            onPress={() => setOrderType(type)}
+          >
+            <Text style={[styles.paymentText, orderType === type && styles.paymentTextActive]}>
+              {type}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {isBulkOrder && (
+        <TextInput
+          value={bulkNote}
+          onChangeText={setBulkNote}
+          placeholder="Bulk order note, timing, cartons, or packing instruction"
+          style={[styles.input, styles.noteInput]}
+          placeholderTextColor="#8A8A8A"
+          multiline
+        />
+      )}
+
       <SectionTitle title="Category-wise Products" action="Tap + to add" />
       <DataState isLoading={products.isLoading} error={products.error} empty={!filteredProducts.length}>
-        {filteredProducts.map((item) => (
-          <View key={item._id} style={styles.productWrap}>
-            <FoodCard item={item} />
-            <View style={styles.stepper}>
-              <Pressable style={styles.stepperButton} onPress={() => changeQuantity(item._id, -1)}>
-                <Text style={styles.stepperText}>-</Text>
-              </Pressable>
-              <Text style={styles.quantity}>{quantities[item._id] || 0}</Text>
-              <Pressable style={styles.stepperButton} onPress={() => changeQuantity(item._id, 1)}>
-                <Text style={styles.stepperText}>+</Text>
-              </Pressable>
+        {filteredProducts.map((item) => {
+          const quantity = quantities[item._id] || 0;
+          const isFocused = focusedProductId === item._id;
+
+          return (
+            <View key={item._id} style={[styles.productWrap, isFocused && styles.productWrapFocused]}>
+              <FoodCard item={item} />
+              {quantity > 0 ? (
+                <View style={styles.stepper}>
+                  <Pressable style={styles.stepperButton} onPress={() => changeQuantity(item._id, -1)}>
+                    <Text style={styles.stepperText}>-</Text>
+                  </Pressable>
+                  <Text style={styles.quantity}>{quantity}</Text>
+                  <Pressable style={styles.stepperButton} onPress={() => changeQuantity(item._id, 1)}>
+                    <Text style={styles.stepperText}>+</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable style={({ pressed }) => [styles.addButton, pressed && styles.pressed]} onPress={() => changeQuantity(item._id, 1)}>
+                  <Text style={styles.addButtonText}>Add +</Text>
+                </Pressable>
+              )}
             </View>
-          </View>
-        ))}
+          );
+        })}
       </DataState>
 
       <SectionTitle title="Order Summary" />
@@ -333,31 +393,6 @@ const PlaceOrderScreen = () => {
         </View>
       </View>
 
-      <SectionTitle title="Order Type" action={isBulkOrder ? 'Bulk' : 'Regular'} />
-      <View style={styles.paymentRow}>
-        {['Regular', 'Bulk'].map((type) => (
-          <Pressable
-            key={type}
-            style={[styles.paymentChip, orderType === type && styles.paymentChipActive]}
-            onPress={() => setOrderType(type)}
-          >
-            <Text style={[styles.paymentText, orderType === type && styles.paymentTextActive]}>
-              {type}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      {isBulkOrder && (
-        <TextInput
-          value={bulkNote}
-          onChangeText={setBulkNote}
-          placeholder="Bulk order note, timing, cartons, or packing instruction"
-          style={[styles.input, styles.noteInput]}
-          placeholderTextColor="#8A8A8A"
-          multiline
-        />
-      )}
-
       <SectionTitle title="Vendor Location" action={vendorLocation ? 'Ready' : 'Required'} />
       <View style={styles.locationCard}>
         <Text style={styles.locationTitle}>
@@ -369,11 +404,11 @@ const PlaceOrderScreen = () => {
         <PrimaryButton
           label="Use Current Location"
           icon="crosshairs-gps"
-          tone={colors.ink}
+          tone={colors.black}
           disabled={isLocating || isSubmitting}
           loading={isLocating}
           loadingLabel="Locating..."
-          onPress={() => captureVendorLocation(true).catch(() => {})}
+          onPress={() => captureVendorLocation(true).catch(() => { })}
         />
       </View>
 
@@ -447,17 +482,49 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   categoryTextActive: {
-    color: colors.white,
+    color: colors.onBrand,
   },
   productWrap: {
+    borderRadius: 8,
+    marginBottom: 10,
     position: 'relative',
+  },
+  productWrapFocused: {
+    backgroundColor: colors.greenSoft,
+    padding: 3,
+  },
+  addButton: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.red,
+    borderRadius: 8,
+    borderWidth: 1,
+    bottom: 12,
+    height: 32,
+    justifyContent: 'center',
+    minWidth: 78,
+    paddingHorizontal: 12,
+    position: 'absolute',
+    right: 12,
+    ...shadows.soft,
+  },
+  addButtonText: {
+    color: colors.red,
+    fontSize: 13,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   stepper: {
     alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
     bottom: 12,
     flexDirection: 'row',
     position: 'absolute',
     right: 12,
+    ...shadows.soft,
   },
   stepperButton: {
     alignItems: 'center',
@@ -468,7 +535,7 @@ const styles = StyleSheet.create({
     width: 30,
   },
   stepperText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 18,
     fontWeight: '900',
   },
@@ -478,6 +545,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     minWidth: 34,
     textAlign: 'center',
+  },
+  pressed: {
+    opacity: 0.84,
   },
   message: {
     color: colors.redDark,
@@ -493,6 +563,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 14,
     padding: 14,
+    ...shadows.soft,
   },
   locationTitle: {
     color: colors.ink,
@@ -514,6 +585,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 14,
     padding: 14,
+    ...shadows.soft,
   },
   billRow: {
     alignItems: 'center',
@@ -567,8 +639,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   paymentChipActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
+    backgroundColor: colors.red,
+    borderColor: colors.red,
   },
   paymentText: {
     color: colors.muted,
@@ -576,7 +648,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   paymentTextActive: {
-    color: colors.white,
+    color: colors.onBrand,
   },
 });
 

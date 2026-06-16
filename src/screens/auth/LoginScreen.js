@@ -14,15 +14,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import { colors, imageSource, images } from '../../theme/brand';
+import { EntranceView } from '../../components/SamosaUI';
+import { colors, imageSource, images, shadows } from '../../theme/brand';
 
 const webScrollStyle = Platform.OS === 'web'
   ? {
-      overflow: 'auto',
-      overflowY: 'auto',
-      touchAction: 'pan-y',
-      WebkitOverflowScrolling: 'touch',
-    }
+    overflow: 'auto',
+    overflowY: 'auto',
+    touchAction: 'pan-y',
+    WebkitOverflowScrolling: 'touch',
+  }
   : null;
 
 const LoginScreen = ({ navigation, route }) => {
@@ -64,91 +65,91 @@ const LoginScreen = ({ navigation, route }) => {
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-      <ScrollView
-        style={[styles.scroll, webScrollStyle]}
-        contentContainerStyle={[styles.screenContent, compactLayout && styles.compactScreenContent]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.form}>
-          <View style={[styles.brandPanel, compactLayout && styles.compactBrandPanel]}>
-            <Image
-              source={imageSource(images.logo)}
-              style={[styles.logo, compactLayout && styles.compactLogo]}
-              resizeMode="contain"
+        <ScrollView
+          style={[styles.scroll, webScrollStyle]}
+          contentContainerStyle={[styles.screenContent, compactLayout && styles.compactScreenContent]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <EntranceView style={styles.form}>
+            <View style={[styles.brandPanel, compactLayout && styles.compactBrandPanel]}>
+              <Image
+                source={imageSource(images.logo)}
+                style={[styles.logo, compactLayout && styles.compactLogo]}
+                resizeMode="contain"
+              />
+              <Text style={[styles.roleBadge, compactLayout && styles.compactRoleBadge]}>{roleLabel}</Text>
+              <Text style={[styles.title, compactLayout && styles.compactTitle]}>Hot & Fresh Everytime</Text>
+              <Text style={[styles.subtitle, compactLayout && styles.compactSubtitle]}>
+                {role === 'admin'
+                  ? 'Use the single admin email and password configured in server .env.'
+                  : canRequestAccess
+                    ? 'Sign in after admin verifies your signup request.'
+                    : 'Sign in with the vendor credential created by admin.'}
+              </Text>
+            </View>
+
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={[styles.input, compactLayout && styles.compactInput]}
+              placeholderTextColor="#8A8A8A"
             />
-            <Text style={[styles.roleBadge, compactLayout && styles.compactRoleBadge]}>{roleLabel}</Text>
-            <Text style={[styles.title, compactLayout && styles.compactTitle]}>Hot & Fresh Everytime</Text>
-            <Text style={[styles.subtitle, compactLayout && styles.compactSubtitle]}>
-              {role === 'admin'
-                ? 'Use the single admin email and password configured in server .env.'
-                : canRequestAccess
-                  ? 'Sign in after admin verifies your signup request.'
-                  : 'Sign in with the vendor credential created by admin.'}
-            </Text>
-          </View>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password"
+              secureTextEntry
+              style={[styles.input, compactLayout && styles.compactInput]}
+              placeholderTextColor="#8A8A8A"
+            />
 
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={[styles.input, compactLayout && styles.compactInput]}
-            placeholderTextColor="#8A8A8A"
-          />
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            secureTextEntry
-            style={[styles.input, compactLayout && styles.compactInput]}
-            placeholderTextColor="#8A8A8A"
-          />
+            {!!message && <Text style={styles.message}>{message}</Text>}
 
-          {!!message && <Text style={styles.message}>{message}</Text>}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryButton,
-              compactLayout && styles.compactPrimaryButton,
-              pressed && styles.pressed,
-              isSubmitting && styles.disabled,
-            ]}
-            onPress={handleLogin}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryButtonText}>Login</Text>
-            )}
-          </Pressable>
-
-          <View style={[styles.linkGroup, compactLayout && styles.compactLinkGroup]}>
             <Pressable
-              style={({ pressed }) => [styles.linkButton, compactLayout && styles.compactLinkButton, pressed && styles.pressed]}
-              onPress={() => navigation.navigate('ForgotPassword', { role })}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                compactLayout && styles.compactPrimaryButton,
+                pressed && styles.pressed,
+                isSubmitting && styles.disabled,
+              ]}
+              onPress={handleLogin}
+              disabled={isSubmitting}
             >
-              <Text style={[styles.linkText, compactLayout && styles.compactLinkText]}>Forgot password</Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Login</Text>
+              )}
             </Pressable>
-            {canRequestAccess && (
+
+            <View style={[styles.linkGroup, compactLayout && styles.compactLinkGroup]}>
               <Pressable
                 style={({ pressed }) => [styles.linkButton, compactLayout && styles.compactLinkButton, pressed && styles.pressed]}
-                onPress={() => navigation.navigate('Register', { role, roleLabel })}
+                onPress={() => navigation.navigate('ForgotPassword', { role })}
               >
-                <Text style={[styles.linkText, compactLayout && styles.compactLinkText]}>Request signup</Text>
+                <Text style={[styles.linkText, compactLayout && styles.compactLinkText]}>Forgot password</Text>
               </Pressable>
-            )}
-            <Pressable
-              style={({ pressed }) => [styles.linkButton, compactLayout && styles.compactLinkButton, pressed && styles.pressed]}
-              onPress={() => navigation.navigate('RoleSelection')}
-            >
-              <Text style={[styles.linkText, compactLayout && styles.compactLinkText]}>Choose another role</Text>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
+              {canRequestAccess && (
+                <Pressable
+                  style={({ pressed }) => [styles.linkButton, compactLayout && styles.compactLinkButton, pressed && styles.pressed]}
+                  onPress={() => navigation.navigate('Register', { role, roleLabel })}
+                >
+                  <Text style={[styles.linkText, compactLayout && styles.compactLinkText]}>Request signup</Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={({ pressed }) => [styles.linkButton, compactLayout && styles.compactLinkButton, pressed && styles.pressed]}
+                onPress={() => navigation.navigate('RoleSelection')}
+              >
+                <Text style={[styles.linkText, compactLayout && styles.compactLinkText]}>Choose another role</Text>
+              </Pressable>
+            </View>
+          </EntranceView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -157,7 +158,7 @@ const LoginScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.appBg,
   },
   keyboard: {
     flex: 1,
@@ -182,10 +183,16 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 340,
     alignSelf: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 16,
+    ...shadows.card,
   },
   brandPanel: {
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 18,
   },
   compactBrandPanel: {
     marginBottom: 12,
@@ -223,7 +230,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   roleBadge: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.greenSoft,
     borderRadius: 8,
     color: colors.red,
     fontSize: 12,
@@ -242,7 +249,7 @@ const styles = StyleSheet.create({
   },
   input: {
     alignSelf: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.cream,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
@@ -251,7 +258,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    width: 290,
+    width: '100%',
   },
   compactInput: {
     fontSize: 15,
@@ -263,6 +270,7 @@ const styles = StyleSheet.create({
     color: colors.redDark,
     fontSize: 14,
     marginBottom: 12,
+    textAlign: 'center',
   },
   primaryButton: {
     alignItems: 'center',
@@ -271,15 +279,16 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: 'center',
     marginTop: 4,
-    width: 290,
+    width: '100%',
     alignSelf: 'center',
+    ...shadows.soft,
   },
   compactPrimaryButton: {
     minHeight: 44,
     marginTop: 2,
   },
   primaryButtonText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -301,7 +310,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   compactLinkButton: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.greenSoft,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 7,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors } from '../theme/brand';
+import { useThemeMode } from '../context/ThemeContext';
 import DeliveryDashboardScreen from '../screens/delivery/DeliveryDashboardScreen';
 import DeliveryTrackingScreen from '../screens/delivery/DeliveryTrackingScreen';
 import PaymentCollectionScreen from '../screens/delivery/PaymentCollectionScreen';
@@ -13,6 +13,7 @@ const Tab = createBottomTabNavigator();
 const badgeValue = (count) => (count > 99 ? '99+' : count || undefined);
 
 const DeliveryNavigator = () => {
+  const { palette } = useThemeMode();
   const deliveries = useApiResource('/delivery/dashboard?scope=active', []);
   const assignedBadge = (deliveries.data || []).filter((delivery) => delivery.status === 'Assigned').length;
   const trackingBadge = (deliveries.data || []).filter((delivery) => delivery.status !== 'Delivered').length;
@@ -45,8 +46,9 @@ const DeliveryNavigator = () => {
 
           return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: colors.red,
-        tabBarInactiveTintColor: colors.softText,
+        tabBarActiveTintColor: palette.activeTint,
+        tabBarInactiveTintColor: palette.softText,
+        tabBarActiveBackgroundColor: palette.activeSurface,
         tabBarBadge:
           route.name === 'Dashboard'
             ? badgeValue(assignedBadge)
@@ -55,14 +57,31 @@ const DeliveryNavigator = () => {
               : route.name === 'Payments'
                 ? badgeValue(paymentsBadge)
                 : undefined,
-        tabBarBadgeStyle: { backgroundColor: colors.red, color: colors.white, fontWeight: '900' },
+        tabBarBadgeStyle: { backgroundColor: palette.red, color: palette.onBrand, fontWeight: '900' },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '800' },
+        tabBarItemStyle: { borderRadius: 999, marginHorizontal: 4, marginVertical: 6 },
         tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopColor: colors.border,
-          height: 64,
+          backgroundColor: palette.white,
+          borderColor: palette.contrastBorder,
+          borderRadius: 999,
+          borderTopWidth: 1,
+          borderWidth: 1,
+          bottom: 10,
+          boxShadow: `0 10px 28px ${palette.shadow}`,
+          elevation: 10,
+          height: 72,
+          left: 8,
           paddingBottom: 8,
-          paddingTop: 6,
+          paddingHorizontal: 6,
+          paddingTop: 8,
+          position: 'absolute',
+          right: 8,
+        },
+        animation: 'shift',
+        sceneStyle: { backgroundColor: palette.appBg },
+        transitionSpec: {
+          animation: 'timing',
+          config: { duration: 180 },
         },
         headerShown: false,
       })}

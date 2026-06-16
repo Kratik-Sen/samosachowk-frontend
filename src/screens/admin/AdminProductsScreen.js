@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Alert, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, FoodCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL } from '../../context/AuthContext';
-import { colors, images } from '../../theme/brand';
+import { colors, images, shadows } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 
 const initialForm = {
@@ -26,6 +26,7 @@ const AdminProductsScreen = () => {
   const [imagePreview, setImagePreview] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFormModalVisible, setIsFormModalVisible] = useState(false);
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -36,6 +37,16 @@ const AdminProductsScreen = () => {
     setEditingProduct(null);
     setImageFile(null);
     setImagePreview('');
+    setIsFormModalVisible(false);
+  };
+
+  const openCreateProduct = () => {
+    setForm(initialForm);
+    setEditingProduct(null);
+    setImageFile(null);
+    setImagePreview('');
+    setMessage('');
+    setIsFormModalVisible(true);
   };
 
   const editProduct = (product) => {
@@ -51,6 +62,7 @@ const AdminProductsScreen = () => {
     setImageFile(null);
     setImagePreview(product.image || '');
     setMessage(`Editing ${product.name}`);
+    setIsFormModalVisible(true);
   };
 
   const chooseWebImage = () => {
@@ -202,72 +214,107 @@ const AdminProductsScreen = () => {
         ]}
       />
 
-      <SectionTitle title={editingProduct ? 'Edit Menu Item' : 'Add Menu Item'} action={editingProduct ? 'Update' : 'Cloudinary'} />
-      <View style={styles.form}>
-        <TextInput
-          value={form.name}
-          onChangeText={(value) => updateField('name', value)}
-          placeholder="Product name"
-          style={styles.input}
-          placeholderTextColor="#8A8A8A"
-        />
-        <TextInput
-          value={form.category}
-          onChangeText={(value) => updateField('category', value)}
-          placeholder="Category"
-          style={styles.input}
-          placeholderTextColor="#8A8A8A"
-        />
-        <TextInput
-          value={form.price}
-          onChangeText={(value) => updateField('price', value)}
-          placeholder="Price"
-          keyboardType="numeric"
-          style={styles.input}
-          placeholderTextColor="#8A8A8A"
-        />
-        <TextInput
-          value={form.stock}
-          onChangeText={(value) => updateField('stock', value)}
-          placeholder="Stock quantity"
-          keyboardType="numeric"
-          style={styles.input}
-          placeholderTextColor="#8A8A8A"
-        />
-        <TextInput
-          value={form.packages}
-          onChangeText={(value) => updateField('packages', value)}
-          placeholder="Packages, comma separated"
-          style={styles.input}
-          placeholderTextColor="#8A8A8A"
-        />
-        <TextInput
-          value={form.description}
-          onChangeText={(value) => updateField('description', value)}
-          placeholder="Description"
-          multiline
-          style={[styles.input, styles.textArea]}
-          placeholderTextColor="#8A8A8A"
-        />
-        {!!imagePreview && <Image source={{ uri: imagePreview }} style={styles.preview} />}
-        <Pressable style={({ pressed }) => [styles.fileButton, pressed && styles.pressed]} onPress={chooseImage}>
-          <Text style={styles.fileButtonText}>{imageFile ? imageFile.name : 'Choose Image File'}</Text>
-        </Pressable>
-        {!!message && <Text style={styles.message}>{message}</Text>}
-        <PrimaryButton
-          label={editingProduct ? 'Update Menu Item' : 'Add Menu Item'}
-          icon={editingProduct ? 'content-save' : 'cloud-upload'}
-          onPress={saveProduct}
-          loading={isSubmitting}
-          loadingLabel={editingProduct ? 'Updating...' : 'Uploading...'}
-        />
-        {editingProduct && (
-          <Pressable style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]} onPress={resetForm}>
-            <MaterialCommunityIcons name="close-circle-outline" size={18} color={colors.ink} />
-            <Text style={styles.cancelButtonText}>Cancel Edit</Text>
-          </Pressable>
-        )}
+      <SectionTitle title="Menu Items" action="Cloudinary" />
+      <View style={styles.addPanel}>
+        <View style={styles.addPanelText}>
+          <Text style={styles.addPanelTitle}>Create or update products</Text>
+          <Text style={styles.addPanelSubtitle}>Edit opens as a popup, so you stay right where the product is.</Text>
+        </View>
+        <PrimaryButton label="Add Menu Item" icon="plus-circle" onPress={openCreateProduct} />
       </View>
+      {!!message && !isFormModalVisible && <Text style={styles.message}>{message}</Text>}
+
+      <Modal transparent visible={isFormModalVisible} animationType="fade" onRequestClose={resetForm}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalEyebrow}>{editingProduct ? 'Update product' : 'New product'}</Text>
+                <Text style={styles.modalTitle}>{editingProduct ? editingProduct.name : 'Add menu item'}</Text>
+              </View>
+              <Pressable style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]} onPress={resetForm}>
+                <MaterialCommunityIcons name="close" size={22} color={colors.ink} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.form}>
+                <TextInput
+                  value={form.name}
+                  onChangeText={(value) => updateField('name', value)}
+                  placeholder="Product name"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={form.category}
+                  onChangeText={(value) => updateField('category', value)}
+                  placeholder="Category"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={form.price}
+                  onChangeText={(value) => updateField('price', value)}
+                  placeholder="Price"
+                  keyboardType="numeric"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={form.stock}
+                  onChangeText={(value) => updateField('stock', value)}
+                  placeholder="Stock quantity"
+                  keyboardType="numeric"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={form.packages}
+                  onChangeText={(value) => updateField('packages', value)}
+                  placeholder="Packages, comma separated"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={form.description}
+                  onChangeText={(value) => updateField('description', value)}
+                  placeholder="Description"
+                  multiline
+                  style={[styles.input, styles.textArea]}
+                  placeholderTextColor="#8A8A8A"
+                />
+                {!!imagePreview && <Image source={{ uri: imagePreview }} style={styles.preview} />}
+                <Pressable style={({ pressed }) => [styles.fileButton, pressed && styles.pressed]} onPress={chooseImage}>
+                  <MaterialCommunityIcons name="image-plus" size={18} color={colors.onBrand} />
+                  <Text style={styles.fileButtonText}>{imageFile ? imageFile.name : 'Choose Image File'}</Text>
+                </Pressable>
+                {!!message && <Text style={styles.message}>{message}</Text>}
+              </View>
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <PrimaryButton
+                label={editingProduct ? 'Update Menu Item' : 'Add Menu Item'}
+                icon={editingProduct ? 'content-save' : 'cloud-upload'}
+                onPress={saveProduct}
+                loading={isSubmitting}
+                loadingLabel={editingProduct ? 'Updating...' : 'Uploading...'}
+              />
+              {editingProduct && (
+                <Pressable style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]} onPress={resetForm}>
+                  <MaterialCommunityIcons name="close-circle-outline" size={18} color={colors.ink} />
+                  <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <SectionTitle title="Products" action="Manage" />
       <DataState isLoading={products.isLoading} error={products.error} empty={!products.data?.length}>
@@ -286,7 +333,7 @@ const AdminProductsScreen = () => {
                 style={({ pressed }) => [styles.productActionButton, styles.removeButton, pressed && styles.pressed]}
                 onPress={() => confirmRemoveProduct(item)}
               >
-                <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.white} />
+                <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.onBrand} />
                 <Text style={[styles.productActionText, styles.removeButtonText]}>Remove</Text>
               </Pressable>
             </View>
@@ -298,13 +345,96 @@ const AdminProductsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  form: {
+  addPanel: {
+    alignItems: 'center',
     backgroundColor: colors.white,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    marginBottom: 18,
-    padding: 12,
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    padding: 14,
+    ...shadows.soft,
+  },
+  addPanelText: {
+    flex: 1,
+  },
+  addPanelTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  addPanelSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  modalOverlay: {
+    alignItems: 'center',
+    backgroundColor: '#00000080',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    maxHeight: '88%',
+    maxWidth: 560,
+    overflow: 'hidden',
+    width: '100%',
+    ...shadows.card,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  modalEyebrow: {
+    color: colors.amber,
+    fontSize: 11,
+    fontWeight: '900',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  modalTitle: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  closeButton: {
+    alignItems: 'center',
+    backgroundColor: colors.cream,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  modalScroll: {
+    maxHeight: 520,
+  },
+  modalScrollContent: {
+    padding: 14,
+  },
+  modalFooter: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    padding: 14,
+  },
+  form: {
+    marginBottom: 0,
   },
   input: {
     backgroundColor: colors.cream,
@@ -323,15 +453,18 @@ const styles = StyleSheet.create({
   },
   fileButton: {
     alignItems: 'center',
-    backgroundColor: colors.ink,
+    backgroundColor: colors.black,
     borderRadius: 8,
+    flexDirection: 'row',
+    gap: 8,
     marginBottom: 10,
     minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: 12,
+    ...shadows.soft,
   },
   fileButtonText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 14,
     fontWeight: '900',
   },
@@ -385,6 +518,7 @@ const styles = StyleSheet.create({
     gap: 6,
     justifyContent: 'center',
     minHeight: 42,
+    ...shadows.soft,
   },
   productActionText: {
     color: colors.ink,
@@ -396,7 +530,7 @@ const styles = StyleSheet.create({
     borderColor: colors.red,
   },
   removeButtonText: {
-    color: colors.white,
+    color: colors.onBrand,
   },
 });
 

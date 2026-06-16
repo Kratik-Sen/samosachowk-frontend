@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors } from '../theme/brand';
+import { useThemeMode } from '../context/ThemeContext';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import AdminOrdersScreen from '../screens/admin/AdminOrdersScreen';
 import AdminProductsScreen from '../screens/admin/AdminProductsScreen';
@@ -32,6 +32,7 @@ const DrawerLabel = ({ label, count, color }) => {
 };
 
 const AdminNavigator = () => {
+  const { palette } = useThemeMode();
   const users = useApiResource('/admin/users', []);
   const orders = useApiResource('/orders', []);
   const accessBadge = (users.data || []).filter(
@@ -49,14 +50,26 @@ const AdminNavigator = () => {
   return (
     <Drawer.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: colors.ink },
-        headerTintColor: colors.white,
+        headerStyle: {
+          backgroundColor: palette.white,
+          borderBottomColor: palette.contrastBorder,
+          borderBottomWidth: 1,
+          boxShadow: `0 8px 20px ${palette.shadow}`,
+          elevation: 4,
+        },
+        headerTintColor: palette.ink,
         headerTitleStyle: { fontWeight: '900' },
-        drawerActiveBackgroundColor: colors.surface,
-        drawerActiveTintColor: colors.red,
-        drawerInactiveTintColor: colors.ink,
+        drawerActiveBackgroundColor: palette.activeSurface,
+        drawerActiveTintColor: palette.activeTint,
+        drawerInactiveTintColor: palette.ink,
+        drawerItemStyle: { borderRadius: 16, marginHorizontal: 8 },
         drawerLabelStyle: { fontWeight: '800' },
-        drawerStyle: { backgroundColor: colors.cream },
+        drawerStyle: {
+          backgroundColor: palette.appBg,
+          borderRightColor: palette.contrastBorder,
+          borderRightWidth: 1,
+        },
+        sceneStyle: { backgroundColor: palette.appBg },
       }}
     >
       <Drawer.Screen 
@@ -119,7 +132,7 @@ const styles = StyleSheet.create({
   },
   drawerBadge: {
     alignItems: 'center',
-    backgroundColor: colors.red,
+    backgroundColor: '#E2382F',
     borderRadius: 999,
     justifyContent: 'center',
     minHeight: 20,
@@ -127,7 +140,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
   },
   drawerBadgeText: {
-    color: colors.white,
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '900',
   },

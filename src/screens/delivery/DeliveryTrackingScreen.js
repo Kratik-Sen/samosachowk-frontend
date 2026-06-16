@@ -6,7 +6,7 @@ import { AppScreen, BrandHero, DataState, InfoCard, PrimaryButton, SectionTitle 
 import GoogleRouteMap from '../../components/GoogleRouteMap';
 import { API_URL } from '../../context/AuthContext';
 import { useRealtime } from '../../context/RealtimeContext';
-import { colors, images } from '../../theme/brand';
+import { colors, images, shadows } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 import { estimateRouteInfo } from '../../utils/routeMetrics';
 import { canRenderNativeMap, nativeMapSetupMessage } from '../../utils/nativeMaps';
@@ -340,7 +340,7 @@ const DeliveryTrackingScreen = () => {
             <PrimaryButton
               label="Refresh Map"
               icon="refresh"
-              tone={colors.ink}
+              tone={colors.black}
               disabled={isRefreshingMap}
               loading={isRefreshingMap}
               loadingLabel="Refreshing..."
@@ -373,7 +373,7 @@ const DeliveryTrackingScreen = () => {
           <PrimaryButton
             label="Refresh Map"
             icon="refresh"
-            tone={colors.ink}
+            tone={colors.black}
             disabled={isRefreshingMap}
             loading={isRefreshingMap}
             loadingLabel="Refreshing..."
@@ -446,7 +446,7 @@ const DeliveryTrackingScreen = () => {
         <PrimaryButton
           label="Refresh Map"
           icon="refresh"
-          tone={colors.ink}
+          tone={colors.black}
           disabled={isRefreshingMap}
           loading={isRefreshingMap}
           loadingLabel="Refreshing..."
@@ -500,7 +500,7 @@ const DeliveryTrackingScreen = () => {
               <PrimaryButton
                 label="Share Current Location"
                 icon="map-marker-path"
-                tone={colors.ink}
+                tone={colors.black}
                 disabled={Boolean(busyId)}
                 loading={busyId === run._id}
                 loadingLabel="Sharing..."
@@ -540,6 +540,7 @@ const styles = StyleSheet.create({
     height: 300,
     marginBottom: 14,
     overflow: 'hidden',
+    ...shadows.card,
   },
   map: {
     height: '100%',
@@ -569,6 +570,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 14,
     padding: 14,
+    ...shadows.soft,
   },
   trackingTitle: {
     color: colors.ink,
@@ -589,6 +591,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 14,
     padding: 14,
+    ...shadows.soft,
   },
   contactLabel: {
     color: colors.muted,

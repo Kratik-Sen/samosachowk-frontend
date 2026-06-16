@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
-import { colors, formatMoney } from '../../theme/brand';
+import { colors, formatMoney, imageSource, images, shadows } from '../../theme/brand';
 import { useAuth } from '../../context/AuthContext';
 import { useApiResource } from '../../hooks/useApiResource';
 import { downloadOrderInvoice } from '../../utils/invoice';
@@ -20,10 +20,12 @@ const VendorDashboardScreen = () => {
     pendingOrders: 0,
     rewardPoints: 0,
   });
+  const products = useApiResource('/products?status=Active', []);
   const orders = useApiResource('/vendors/orders?scope=active', []);
   const reorderHistory = useApiResource('/orders/history?limit=3', { orders: [] });
   const dashboardData = dashboard.data || {};
   const pastOrders = reorderHistory.data?.orders || [];
+  const featuredProducts = useMemo(() => (products.data || []).slice(0, 10), [products.data]);
   const [locationPrompt, setLocationPrompt] = useState(null);
   const [dismissedPromptIds, setDismissedPromptIds] = useState({});
   const [invoiceBusyId, setInvoiceBusyId] = useState('');
@@ -54,6 +56,14 @@ const VendorDashboardScreen = () => {
   const openTracking = () => {
     closePrompt();
     navigation.navigate('History');
+  };
+
+  const openProductOrder = (product) => {
+    setActionMessage('');
+    navigation.navigate('Place Order', {
+      focusProductId: product._id,
+      focusProductAt: Date.now(),
+    });
   };
 
   const reorderFromPastOrder = (order) => {
@@ -119,7 +129,7 @@ const VendorDashboardScreen = () => {
           ]}
           onPress={() => downloadInvoice(order)}
         >
-          <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.white} />
+          <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.onBrand} />
           <Text style={[styles.orderActionText, styles.invoiceButtonText]}>
             {invoiceBusyId === order._id ? 'Preparing...' : 'Invoice'}
           </Text>
@@ -146,6 +156,37 @@ const VendorDashboardScreen = () => {
       />
 
       {!!actionMessage && <Text style={styles.message}>{actionMessage}</Text>}
+
+      <SectionTitle title="Order Products" action="Swipe" />
+      <DataState isLoading={products.isLoading} error={products.error} empty={!featuredProducts.length}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.productRail}
+        >
+          {featuredProducts.map((product) => (
+            <Pressable
+              key={product._id}
+              style={({ pressed }) => [styles.productSlideCard, pressed && styles.pressed]}
+              onPress={() => openProductOrder(product)}
+            >
+              <Image
+                source={imageSource(product.image || images.heroSamosa)}
+                style={styles.productSlideImage}
+                resizeMode="cover"
+              />
+              <Text style={styles.productSlideCategory}>{product.category || 'Menu'}</Text>
+              <Text style={styles.productSlideName} numberOfLines={2}>{product.name}</Text>
+              <View style={styles.productSlideBottom}>
+                <Text style={styles.productSlidePrice}>{formatMoney(product.price)}</Text>
+                <View style={styles.productSlideButton}>
+                  <Text style={styles.productSlideButtonText}>Add +</Text>
+                </View>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </DataState>
 
       <SectionTitle title="Reorder From Past" action="Last 3" />
       <DataState isLoading={reorderHistory.isLoading} error={reorderHistory.error} empty={!pastOrders.length}>
@@ -194,6 +235,73 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: 'center',
   },
+  productRail: {
+    gap: 12,
+    paddingBottom: 12,
+    paddingRight: 12,
+  },
+  productSlideCard: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: 'hidden',
+    width: 188,
+    ...shadows.soft,
+  },
+  productSlideImage: {
+    backgroundColor: colors.surface,
+    height: 104,
+    width: '100%',
+  },
+  productSlideCategory: {
+    color: colors.amber,
+    fontSize: 10,
+    fontWeight: '900',
+    marginHorizontal: 10,
+    marginTop: 10,
+    textTransform: 'uppercase',
+  },
+  productSlideName: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 19,
+    marginHorizontal: 10,
+    marginTop: 4,
+    minHeight: 38,
+  },
+  productSlideBottom: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 10,
+    paddingBottom: 10,
+    paddingHorizontal: 10,
+  },
+  productSlidePrice: {
+    color: colors.green,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  productSlideButton: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.red,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 30,
+    justifyContent: 'center',
+    paddingHorizontal: 9,
+  },
+  productSlideButtonText: {
+    color: colors.red,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
   orderBlock: {
     marginBottom: 14,
   },
@@ -214,6 +322,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 42,
     paddingHorizontal: 10,
+    ...shadows.soft,
   },
   orderActionButtonWide: {
     flexGrow: 0,
@@ -229,7 +338,7 @@ const styles = StyleSheet.create({
     borderColor: colors.red,
   },
   invoiceButtonText: {
-    color: colors.white,
+    color: colors.onBrand,
   },
   disabled: {
     opacity: 0.55,
@@ -240,6 +349,7 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     padding: 18,
     width: '100%',
+    ...shadows.card,
   },
   modalTitle: {
     color: colors.ink,

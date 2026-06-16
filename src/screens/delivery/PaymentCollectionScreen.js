@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL } from '../../context/AuthContext';
-import { colors, formatMoney, images } from '../../theme/brand';
+import { colors, formatMoney, images, shadows } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 import { formatDistance, getDistanceKmBetween } from '../../utils/routeMetrics';
 import { getDeliveryStopSubtitle } from '../../utils/deliveryContact';
@@ -128,8 +128,7 @@ const PaymentCollectionScreen = () => {
 
       if (latestDistanceKm === null || latestDistanceKm > DELIVERY_CLOSE_DISTANCE_KM) {
         setLocationMessage(
-          `Reach within ${DELIVERY_CLOSE_DISTANCE_TEXT} of the vendor before closing. Current distance: ${
-            latestDistanceKm === null ? 'unknown' : formatDistance(latestDistanceKm)
+          `Reach within ${DELIVERY_CLOSE_DISTANCE_TEXT} of the vendor before closing. Current distance: ${latestDistanceKm === null ? 'unknown' : formatDistance(latestDistanceKm)
           }.`
         );
         return;
@@ -186,11 +185,10 @@ const PaymentCollectionScreen = () => {
           <InfoCard
             key={run._id}
             title={run.order?.customer_name || 'Delivery'}
-            subtitle={`${
-              run.order?.payment_method === 'COD'
+            subtitle={`${run.order?.payment_method === 'COD'
                 ? (run.payment_collected ? 'Payment collected' : 'Collection pending')
                 : 'Paid online'
-            } - ${getDeliveryStopSubtitle(run.order, run.notes || 'No address note')}`}
+              } - ${getDeliveryStopSubtitle(run.order, run.notes || 'No address note')}`}
             right={formatMoney(run.order?.final_amount)}
             status={run.status}
             icon="cash-register"
@@ -234,6 +232,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 14,
     padding: 14,
+    ...shadows.card,
   },
   distanceLabel: {
     color: colors.muted,
@@ -277,6 +276,7 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     padding: 18,
     width: '100%',
+    ...shadows.card,
   },
   modalTitle: {
     color: colors.ink,

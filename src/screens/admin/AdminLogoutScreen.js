@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, StyleSheet, View } from 'react-native';
 import { AppScreen, BrandHero, PrimaryButton } from '../../components/SamosaUI';
 import { useAuth } from '../../context/AuthContext';
-import { colors, images } from '../../theme/brand';
+import { colors, images, shadows } from '../../theme/brand';
 
 const AdminLogoutScreen = () => {
   const { user, logout } = useAuth();
@@ -36,6 +36,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 14,
     padding: 16,
+    ...shadows.card,
   },
   label: {
     color: colors.softText,

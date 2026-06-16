@@ -168,7 +168,7 @@ const OrderVerificationScreen = () => {
               label="Assign Delivery Boy"
               icon="truck-delivery-outline"
               onPress={() => assignDelivery(order._id)}
-              tone={colors.ink}
+              tone={colors.black}
               disabled={Boolean(busyId)}
               loading={busyId === order._id}
               loadingLabel="Assigning..."
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   deliveryTextActive: {
-    color: colors.white,
+    color: colors.onBrand,
   },
   message: {
     color: colors.redDark,

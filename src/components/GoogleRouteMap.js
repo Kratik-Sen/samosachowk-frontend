@@ -5,6 +5,7 @@ import { Asset } from 'expo-asset';
 import { colors, images } from '../theme/brand';
 import { useApiResource } from '../hooks/useApiResource';
 import { estimateRouteInfo } from '../utils/routeMetrics';
+import { SamosaLoader } from './SamosaUI';
 
 const toCoordinate = (location) => {
   const lat = Number(location?.lat ?? location?.latitude);
@@ -615,7 +616,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
         })}
         {!isMapReady && (
           <View style={styles.mapOverlay}>
-            {!routeError && <ActivityIndicator color={colors.red} />}
+            {!routeError && <SamosaLoader compact label="Loading map..." />}
             <Text style={styles.mapOverlayTitle}>
               {routeError ? 'Google map blocked' : 'Loading Google map'}
             </Text>
@@ -637,9 +638,9 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
             onPress={refreshMap}
           >
             {refreshInProgress ? (
-              <ActivityIndicator color={colors.white} size="small" />
+              <ActivityIndicator color={colors.onBrand} size="small" />
             ) : (
-              <MaterialCommunityIcons name="refresh" size={18} color={colors.white} />
+              <MaterialCommunityIcons name="refresh" size={18} color={colors.onBrand} />
             )}
             <Text style={styles.refreshButtonText}>
               {refreshInProgress ? 'Refreshing...' : 'Refresh Map'}
@@ -721,7 +722,7 @@ const styles = StyleSheet.create({
   refreshButton: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: colors.ink,
+    backgroundColor: colors.black,
     borderRadius: 8,
     flexDirection: 'row',
     gap: 8,
@@ -736,7 +737,7 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   refreshButtonText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 13,
     fontWeight: '900',
   },

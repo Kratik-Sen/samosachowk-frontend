@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 import { API_URL } from '../../context/AuthContext';
-import { colors } from '../../theme/brand';
+import { EntranceView } from '../../components/SamosaUI';
+import { colors, shadows } from '../../theme/brand';
 
 const ForgotPasswordScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState('');
@@ -43,7 +44,7 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
+        <EntranceView style={styles.content}>
           <Text style={styles.title}>Password Reset</Text>
           <Text style={styles.body}>Submit your email. Admin can reset your credential from access management.</Text>
           <TextInput
@@ -63,7 +64,7 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
           >
             {isSubmitting ? (
               <>
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onBrand} />
                 <Text style={styles.buttonText}>Loading...</Text>
               </>
             ) : (
@@ -73,7 +74,7 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
           <Pressable style={styles.linkButton} onPress={() => navigation.goBack()}>
             <Text style={styles.linkText}>Back to login</Text>
           </Pressable>
-        </View>
+        </EntranceView>
       </ScrollView>
     </SafeAreaView>
   );
@@ -82,7 +83,7 @@ const ForgotPasswordScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.appBg,
   },
   scroll: {
     flex: 1,
@@ -96,6 +97,12 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     width: '100%',
     alignSelf: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 18,
+    ...shadows.card,
   },
   title: {
     fontSize: 30,
@@ -110,7 +117,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.cream,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
@@ -134,9 +141,10 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 48,
     justifyContent: 'center',
+    ...shadows.soft,
   },
   buttonText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 16,
     fontWeight: '700',
   },

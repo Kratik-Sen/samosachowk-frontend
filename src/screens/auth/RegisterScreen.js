@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import { colors, imageSource, images } from '../../theme/brand';
+import { EntranceView } from '../../components/SamosaUI';
+import { colors, imageSource, images, shadows } from '../../theme/brand';
 
 const selfSignupRoles = ['sales', 'production', 'delivery'];
 
@@ -105,7 +106,7 @@ const RegisterScreen = ({ navigation, route }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.form}>
+        <EntranceView style={styles.form}>
           <View style={[styles.header, compactLayout && styles.compactHeader]}>
             <Image
               source={imageSource(images.logo)}
@@ -187,7 +188,7 @@ const RegisterScreen = ({ navigation, route }) => {
           >
             <Text style={[styles.linkText, compactLayout && styles.compactLinkText]}>Back to login</Text>
           </Pressable>
-        </View>
+        </EntranceView>
       </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -197,7 +198,7 @@ const RegisterScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.appBg,
   },
   keyboard: {
     flex: 1,
@@ -222,6 +223,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     maxWidth: 340,
     width: '100%',
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 16,
+    ...shadows.card,
   },
   header: {
     marginBottom: 22,
@@ -251,7 +258,7 @@ const styles = StyleSheet.create({
   },
   roleBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.greenSoft,
     borderRadius: 8,
     color: colors.red,
     fontSize: 12,
@@ -292,7 +299,7 @@ const styles = StyleSheet.create({
   },
   input: {
     alignSelf: 'center',
-    backgroundColor: colors.white,
+    backgroundColor: colors.cream,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
@@ -301,7 +308,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    width: 290,
+    width: '100%',
   },
   compactInput: {
     fontSize: 15,
@@ -323,14 +330,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     minHeight: 48,
-    width: 290,
+    width: '100%',
+    ...shadows.soft,
   },
   compactPrimaryButton: {
     minHeight: 44,
     marginTop: 2,
   },
   primaryButtonText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -340,7 +348,7 @@ const styles = StyleSheet.create({
   },
   compactLinkButton: {
     alignSelf: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.greenSoft,
     borderRadius: 8,
     marginTop: 8,
     paddingHorizontal: 12,

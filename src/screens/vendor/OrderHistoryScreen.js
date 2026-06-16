@@ -238,7 +238,7 @@ const OrderHistoryScreen = () => {
             <PrimaryButton
               label="Refresh Map"
               icon="refresh"
-              tone={colors.ink}
+              tone={colors.black}
               disabled={isRefreshingMap || isUpdatingLocation}
               loading={isRefreshingMap}
               loadingLabel="Refreshing..."
@@ -271,7 +271,7 @@ const OrderHistoryScreen = () => {
           <PrimaryButton
             label="Refresh Map"
             icon="refresh"
-            tone={colors.ink}
+            tone={colors.black}
             disabled={isRefreshingMap || isUpdatingLocation}
             loading={isRefreshingMap}
             loadingLabel="Refreshing..."
@@ -344,7 +344,7 @@ const OrderHistoryScreen = () => {
         <PrimaryButton
           label="Refresh Map"
           icon="refresh"
-          tone={colors.ink}
+          tone={colors.black}
           disabled={isRefreshingMap || isUpdatingLocation}
           loading={isRefreshingMap}
           loadingLabel="Refreshing..."
@@ -395,7 +395,7 @@ const OrderHistoryScreen = () => {
           <PrimaryButton
             label="Use Current Location"
             icon="crosshairs-gps"
-            tone={colors.ink}
+            tone={colors.black}
             disabled={isUpdatingLocation || isRefreshingMap}
             loading={isUpdatingLocation}
             loadingLabel="Updating..."

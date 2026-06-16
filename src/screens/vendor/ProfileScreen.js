@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { AppScreen, DataState, InfoCard, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL, useAuth } from '../../context/AuthContext';
-import { colors, formatMoney, imageSource, images } from '../../theme/brand';
+import { colors, formatMoney, imageSource, images, shadows } from '../../theme/brand';
 import { downloadOrderInvoice } from '../../utils/invoice';
 import { formatOrderDate, getOrderImage, getOrderShortId, summarizeOrderItems } from '../../utils/orderDisplay';
 
@@ -148,7 +148,7 @@ const ProfileScreen = () => {
                   ]}
                   onPress={() => downloadInvoice(order)}
                 >
-                  <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.white} />
+                  <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.onBrand} />
                   <Text style={styles.invoiceButtonText}>
                     {invoiceBusyId === order._id ? 'Preparing...' : 'Invoice PDF'}
                   </Text>
@@ -161,7 +161,7 @@ const ProfileScreen = () => {
             <PrimaryButton
               label="Load More Orders"
               icon="chevron-down"
-              tone={colors.ink}
+              tone={colors.black}
               loading={isHistoryLoadingMore}
               loadingLabel="Loading..."
               onPress={() => loadOrderHistory(historyPage + 1)}
@@ -174,7 +174,7 @@ const ProfileScreen = () => {
           style={({ pressed }) => [styles.button, pressed && styles.pressed, isLoggingOut && styles.disabled]}
           onPress={handleLogout}
         >
-          {isLoggingOut && <ActivityIndicator color={colors.white} />}
+          {isLoggingOut && <ActivityIndicator color={colors.onBrand} />}
           <Text style={styles.buttonText}>{isLoggingOut ? 'Loading...' : 'Logout'}</Text>
         </Pressable>
       </View>
@@ -224,6 +224,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 24,
     padding: 16,
+    ...shadows.soft,
   },
   historySection: {
     marginTop: 24,
@@ -256,9 +257,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: -2,
     minHeight: 42,
+    ...shadows.soft,
   },
   invoiceButtonText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 13,
     fontWeight: '900',
   },
@@ -282,9 +284,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: 'center',
     marginTop: 24,
+    ...shadows.soft,
   },
   buttonText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 16,
     fontWeight: '700',
   },

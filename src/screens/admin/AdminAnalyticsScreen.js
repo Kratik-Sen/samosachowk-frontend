@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AppScreen, BrandHero, DataState, MetricGrid, ProgressBar, SectionTitle } from '../../components/SamosaUI';
-import { colors, formatMoney, images } from '../../theme/brand';
+import { colors, formatMoney, images, shadows } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 
 const AdminAnalyticsScreen = () => {
@@ -59,6 +59,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     padding: 14,
+    ...shadows.card,
   },
   row: {
     marginBottom: 16,

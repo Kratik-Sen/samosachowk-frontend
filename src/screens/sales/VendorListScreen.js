@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, SectionTitle } from '../../components/SamosaUI';
-import { colors, images } from '../../theme/brand';
+import { colors, images, shadows } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 
 const VendorListScreen = () => {
@@ -87,10 +87,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 46,
     paddingHorizontal: 12,
+    ...shadows.soft,
   },
   filterButtonActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
+    backgroundColor: colors.black,
+    borderColor: colors.black,
   },
   filterText: {
     color: colors.muted,
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   filterTextActive: {
-    color: colors.white,
+    color: colors.onBrand,
   },
 });
 

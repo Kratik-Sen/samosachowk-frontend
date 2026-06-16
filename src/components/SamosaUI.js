@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Image,
   ImageBackground,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +15,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { colors, formatMoney, imageSource, images } from '../theme/brand';
+import { useThemeMode } from '../context/ThemeContext';
+import { colors, formatMoney, imageSource, images, shadows } from '../theme/brand';
+import SamosaLoader from './SamosaLoader';
+import ThemeToggle from './ThemeToggle';
+
+export { default as SamosaLoader } from './SamosaLoader';
 
 const statusColors = {
   active: colors.green,
@@ -36,14 +43,54 @@ const statusColors = {
   'In Progress': colors.amber,
 };
 
-const metricCardShadow = {
-  boxShadow: `0 6px 12px ${colors.shadow}`,
+const screenWebScrollStyle = Platform.OS === 'web'
+  ? {
+      overflow: 'auto',
+      overflowY: 'auto',
+      touchAction: 'pan-y',
+      WebkitOverflowScrolling: 'touch',
+    }
+  : null;
+
+export const EntranceView = ({ children, delay = 0, style }) => {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 420,
+      delay,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [delay, progress]);
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: progress,
+          transform: [
+            {
+              translateY: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [14, 0],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
 };
 
 export const AppScreen = ({ children }) => {
   const navigation = useNavigation();
   const route = useRoute();
   const { logout } = useAuth();
+  const { isDark } = useThemeMode();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const isAppScreenMountedRef = useRef(true);
 
@@ -82,31 +129,43 @@ export const AppScreen = ({ children }) => {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.screenContent}
-        showsVerticalScrollIndicator={false}
+      <ImageBackground
+        source={imageSource(isDark ? images.darkModeBackground : images.lightModeBackground)}
+        style={styles.screenPattern}
+        imageStyle={styles.screenPatternImage}
+        resizeMode="cover"
       >
-        <View style={styles.panelActions}>
-          <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.pressed]} onPress={goBack}>
-            <MaterialCommunityIcons name="arrow-left" size={20} color={colors.ink} />
-            <Text style={styles.backText}>Back</Text>
-          </Pressable>
-          <Pressable
-            disabled={isLoggingOut}
-            style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed, isLoggingOut && styles.disabled]}
-            onPress={handleLogout}
-          >
-            {isLoggingOut ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <MaterialCommunityIcons name="logout" size={20} color={colors.white} />
-            )}
-            <Text style={styles.logoutText}>{isLoggingOut ? 'Loading...' : 'Logout'}</Text>
-          </Pressable>
-        </View>
-        {children}
-      </ScrollView>
+        <View pointerEvents="none" style={styles.screenOverlay} />
+        <View pointerEvents="none" style={styles.screenBand} />
+        <ScrollView
+          style={[styles.scroll, screenWebScrollStyle]}
+          contentContainerStyle={styles.screenContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.panelActions}>
+            <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.pressed]} onPress={goBack}>
+              <MaterialCommunityIcons name="arrow-left" size={20} color={colors.ink} />
+              <Text style={styles.backText}>Back</Text>
+            </Pressable>
+            <View style={styles.panelActionRight}>
+              <ThemeToggle />
+              <Pressable
+                disabled={isLoggingOut}
+                style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed, isLoggingOut && styles.disabled]}
+                onPress={handleLogout}
+              >
+                {isLoggingOut ? (
+                  <ActivityIndicator color={colors.onBrand} />
+                ) : (
+                  <MaterialCommunityIcons name="logout" size={20} color={colors.onBrand} />
+                )}
+                <Text style={styles.logoutText}>{isLoggingOut ? 'Loading...' : 'Logout'}</Text>
+              </Pressable>
+            </View>
+          </View>
+          <EntranceView>{children}</EntranceView>
+        </ScrollView>
+      </ImageBackground>
     </SafeAreaView>
   );
 };
@@ -140,8 +199,10 @@ export const SectionTitle = ({ title, action }) => (
 
 export const MetricGrid = ({ metrics }) => (
   <View style={styles.metricGrid}>
-    {metrics.map((metric) => (
-      <MetricCard key={metric.label} {...metric} />
+    {metrics.map((metric, index) => (
+      <EntranceView key={metric.label} delay={index * 55} style={styles.metricCell}>
+        <MetricCard {...metric} />
+      </EntranceView>
     ))}
   </View>
 );
@@ -264,9 +325,9 @@ export const PrimaryButton = ({
       onPress={handlePress}
     >
       {isBusy ? (
-        <ActivityIndicator color={colors.white} />
+        <ActivityIndicator color={colors.onBrand} />
       ) : (
-        <MaterialCommunityIcons name={icon} size={20} color={colors.white} />
+        <MaterialCommunityIcons name={icon} size={20} color={colors.onBrand} />
       )}
       <Text style={styles.primaryButtonText}>{isBusy ? loadingLabel : label}</Text>
     </Pressable>
@@ -283,8 +344,7 @@ export const DataState = ({ isLoading, error, empty, children }) => {
   if (isLoading) {
     return (
       <View style={styles.stateBox}>
-        <ActivityIndicator color={colors.red} />
-        <Text style={styles.stateText}>Loading from database...</Text>
+        <SamosaLoader compact label="Loading fresh data..." />
       </View>
     );
   }
@@ -330,7 +390,26 @@ export const BatchCard = ({ batch }) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.appBg,
+    position: 'relative',
+  },
+  screenPattern: {
+    flex: 1,
+  },
+  screenPatternImage: {
+    opacity: 0.22,
+  },
+  screenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.patternOverlay,
+  },
+  screenBand: {
+    backgroundColor: colors.screenBand,
+    height: 142,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
   },
   scroll: {
     flex: 1,
@@ -342,8 +421,14 @@ const styles = StyleSheet.create({
   panelActions: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: 10,
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  panelActionRight: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   backButton: {
     alignItems: 'center',
@@ -356,6 +441,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    ...shadows.soft,
   },
   backText: {
     color: colors.ink,
@@ -370,24 +456,28 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 9,
+    ...shadows.soft,
   },
   logoutText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 13,
     fontWeight: '900',
   },
   hero: {
-    backgroundColor: colors.ink,
+    backgroundColor: '#201816',
+    borderColor: '#FFFFFF18',
     borderRadius: 8,
+    borderWidth: 1,
     minHeight: 220,
     overflow: 'hidden',
     marginBottom: 20,
+    ...shadows.card,
   },
   heroCompact: {
     minHeight: 176,
   },
   heroText: {
-    padding: 18,
+    padding: 20,
     position: 'relative',
     zIndex: 2,
     maxWidth: 420,
@@ -400,13 +490,13 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: colors.yellow,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '900',
     letterSpacing: 0,
     marginBottom: 6,
     textTransform: 'uppercase',
   },
   heroTitle: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 28,
     fontWeight: '900',
     lineHeight: 34,
@@ -416,37 +506,38 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginTop: 8,
+    maxWidth: 360,
   },
   heroImage: {
     bottom: 0,
-    height: 130,
+    height: 142,
     position: 'absolute',
     right: 0,
-    width: 190,
+    width: 210,
   },
   heroImageInner: {
-    opacity: 0.78,
+    opacity: 0.88,
   },
   heroImageShade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#00000033',
+    backgroundColor: '#00000026',
   },
   sectionHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    marginTop: 2,
+    marginBottom: 12,
+    marginTop: 4,
   },
   sectionTitle: {
     color: colors.ink,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
   },
   sectionAction: {
     color: colors.red,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   metricGrid: {
     flexDirection: 'row',
@@ -454,24 +545,26 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 20,
   },
+  metricCell: {
+    flexBasis: '48%',
+    flexGrow: 1,
+  },
   metricCard: {
     backgroundColor: colors.white,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    flexBasis: '48%',
-    flexGrow: 1,
     minHeight: 122,
     padding: 14,
-    ...metricCardShadow,
+    ...shadows.card,
   },
   metricIcon: {
     alignItems: 'center',
     borderRadius: 8,
-    height: 34,
+    height: 38,
     justifyContent: 'center',
     marginBottom: 12,
-    width: 34,
+    width: 38,
   },
   metricValue: {
     color: colors.ink,
@@ -488,7 +581,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderRadius: 8,
     borderWidth: 1,
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 4,
   },
   pillText: {
@@ -498,21 +591,25 @@ const styles = StyleSheet.create({
   },
   foodCard: {
     backgroundColor: colors.white,
-    borderColor: colors.border,
+    borderColor: colors.contrastBorder,
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: 'row',
+    gap: 12,
     marginBottom: 12,
+    padding: 10,
     overflow: 'hidden',
+    ...shadows.soft,
   },
   foodImage: {
     backgroundColor: colors.surface,
-    height: 124,
-    width: 118,
+    borderRadius: 8,
+    height: 110,
+    width: 112,
   },
   foodContent: {
     flex: 1,
-    padding: 12,
+    padding: 2,
   },
   foodTop: {
     alignItems: 'center',
@@ -553,6 +650,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     minHeight: 86,
     padding: 12,
+    ...shadows.soft,
   },
   infoIcon: {
     alignItems: 'center',
@@ -601,14 +699,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     paddingHorizontal: 14,
+    ...shadows.soft,
   },
   primaryButtonText: {
-    color: colors.white,
+    color: colors.onBrand,
     fontSize: 15,
     fontWeight: '900',
   },
   progressTrack: {
-    backgroundColor: '#1C1C1C14',
+    backgroundColor: '#FFFFFF1C',
     borderRadius: 999,
     height: 8,
     marginTop: 12,
@@ -625,6 +724,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 10,
     padding: 14,
+    ...shadows.soft,
   },
   batchTop: {
     alignItems: 'center',
@@ -659,8 +759,9 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'center',
     marginBottom: 14,
-    minHeight: 96,
+    minHeight: 118,
     padding: 16,
+    ...shadows.soft,
   },
   stateText: {
     color: colors.muted,
