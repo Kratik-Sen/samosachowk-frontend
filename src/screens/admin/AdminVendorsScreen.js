@@ -822,8 +822,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   credentialTabActive: {
-    backgroundColor: colors.black,
-    borderColor: colors.black,
+    backgroundColor: colors.selectedSurface,
+    borderColor: colors.selectedBorder,
   },
   credentialTabText: {
     color: colors.muted,
@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   credentialTabTextActive: {
-    color: colors.onBrand,
+    color: colors.selectedText,
   },
   credentialTabBadge: {
     alignItems: 'center',
@@ -844,7 +844,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
   },
   credentialTabBadgeActive: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.selectedBadgeSurface,
   },
   credentialTabBadgeAlert: {
     backgroundColor: colors.red,
@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   credentialTabBadgeTextActive: {
-    color: colors.ink,
+    color: colors.selectedBadgeText,
   },
   credentialTabBadgeTextAlert: {
     color: colors.onBrand,

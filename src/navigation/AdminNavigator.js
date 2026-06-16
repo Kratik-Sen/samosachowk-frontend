@@ -52,7 +52,9 @@ const AdminNavigator = () => {
       screenOptions={{
         headerStyle: {
           backgroundColor: palette.white,
-          borderBottomColor: palette.contrastBorder,
+          borderBottomColor: palette.border,
+          borderBottomLeftRadius: 18,
+          borderBottomRightRadius: 18,
           borderBottomWidth: 1,
           boxShadow: `0 8px 20px ${palette.shadow}`,
           elevation: 4,

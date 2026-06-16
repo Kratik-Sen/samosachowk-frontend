@@ -28,6 +28,11 @@ export const lightPalette = {
   contrastBorder: '#000000',
   activeSurface: '#FFF2CF',
   activeTint: '#D63C26',
+  selectedSurface: '#000000',
+  selectedBorder: '#000000',
+  selectedText: '#FFFFFF',
+  selectedBadgeSurface: '#FFFFFF',
+  selectedBadgeText: '#181A16',
 };
 
 export const darkPalette = {
@@ -58,6 +63,11 @@ export const darkPalette = {
   contrastBorder: '#FFFFFF',
   activeSurface: '#26180F',
   activeTint: '#FFC65A',
+  selectedSurface: '#26180F',
+  selectedBorder: '#FFC65A',
+  selectedText: '#FFC65A',
+  selectedBadgeSurface: '#FFC65A',
+  selectedBadgeText: '#000000',
 };
 
 const themeValue = (name, fallback) => (Platform.OS === 'web' ? `var(--sc-${name}, ${fallback})` : fallback);
