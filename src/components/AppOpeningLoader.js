@@ -1,55 +1,23 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import LottieView from 'lottie-react-native';
 import { useThemeMode } from '../context/ThemeContext';
-import { imageSource, images } from '../theme/brand';
+import samosaLoader from '../../assets/samosa-loader-lottie.json';
 
-const AppOpeningLoader = ({ label = 'Opening Samosa Chowk...' }) => {
-  const { palette } = useThemeMode();
-  const pulse = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 680,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 680,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-      ])
-    );
-
-    animation.start();
-    return () => animation.stop();
-  }, [pulse]);
-
-  const logoScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.06],
-  });
-  const logoOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.92, 1],
-  });
+const AppOpeningLoader = ({ label = '' }) => {
+  const { isDark, palette } = useThemeMode();
+  const backgroundColor = isDark ? palette.appBg : '#FFF6DB';
 
   return (
-    <View style={[styles.screen, { backgroundColor: palette.appBg }]}>
-      <Animated.Image
-        source={imageSource(images.logo)}
+    <View style={[styles.screen, { backgroundColor }]}>
+      <LottieView
+        autoPlay
+        loop={false}
         resizeMode="contain"
-        style={[
-          styles.logo,
-          {
-            opacity: logoOpacity,
-            transform: [{ scale: logoScale }],
-          },
-        ]}
+        source={samosaLoader}
+        speed={1.6}
+        style={styles.loader}
+        webStyle={Platform.OS === 'web' ? styles.loader : undefined}
       />
       {!!label && <Text style={[styles.label, { color: palette.muted }]}>{label}</Text>}
     </View>
@@ -64,8 +32,8 @@ const styles = StyleSheet.create({
     minHeight: 420,
     paddingHorizontal: 28,
   },
-  logo: {
-    height: 156,
+  loader: {
+    height: 220,
     width: 220,
   },
   label: {

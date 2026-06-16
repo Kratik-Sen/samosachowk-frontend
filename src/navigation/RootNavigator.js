@@ -8,17 +8,23 @@ import DeliveryNavigator from './DeliveryNavigator';
 import AdminNavigator from './AdminNavigator';
 import AppOpeningLoader from '../components/AppOpeningLoader';
 
+const OPENING_ANIMATION_MS = 2500;
+
 const RootNavigator = () => {
   const { user, isLoading } = useAuth();
-  const [showOpeningLoader, setShowOpeningLoader] = useState(true);
+  const [showOpeningAnimation, setShowOpeningAnimation] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowOpeningLoader(false), 1500);
+    const timer = setTimeout(() => setShowOpeningAnimation(false), OPENING_ANIMATION_MS);
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading || showOpeningLoader) {
+  if (showOpeningAnimation) {
     return <AppOpeningLoader />;
+  }
+
+  if (isLoading) {
+    return null;
   }
 
   // If not logged in, show Auth screens
