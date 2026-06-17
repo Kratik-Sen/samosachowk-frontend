@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   orderActions: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: -2,
+    marginTop: 4,
   },
   orderActionButton: {
     alignItems: 'center',

@@ -6,6 +6,7 @@ import SalesDashboardScreen from '../screens/sales/SalesDashboardScreen';
 import VendorListScreen from '../screens/sales/VendorListScreen';
 import OrderVerificationScreen from '../screens/sales/OrderVerificationScreen';
 import ProfileScreen from '../screens/vendor/ProfileScreen'; // Reusable profile
+import ContactScreen from '../screens/ContactScreen';
 import { useApiResource } from '../hooks/useApiResource';
 import { useDataArrivalSound } from '../hooks/useDataArrivalSound';
 import { getPanelTabScreenOptions } from './tabBarTheme';
@@ -37,6 +38,8 @@ const SalesNavigator = () => {
             iconName = focused ? 'store' : 'store-outline';
           } else if (route.name === 'Verify Orders') {
             iconName = focused ? 'check-decagram' : 'check-decagram-outline';
+          } else if (route.name === 'Contact') {
+            iconName = focused ? 'map-marker-radius' : 'map-marker-radius-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'account' : 'account-outline';
           }
@@ -50,6 +53,7 @@ const SalesNavigator = () => {
       <Tab.Screen name="Dashboard" component={SalesDashboardScreen} />
       <Tab.Screen name="Vendors" component={VendorListScreen} />
       <Tab.Screen name="Verify Orders" component={OrderVerificationScreen} />
+      <Tab.Screen name="Contact" component={ContactScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

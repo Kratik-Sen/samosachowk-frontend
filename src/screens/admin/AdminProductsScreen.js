@@ -458,6 +458,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 10,
+    marginTop: 2,
     minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: 12,
@@ -505,7 +506,7 @@ const styles = StyleSheet.create({
   productActions: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: -2,
+    marginTop: 4,
   },
   productActionButton: {
     alignItems: 'center',

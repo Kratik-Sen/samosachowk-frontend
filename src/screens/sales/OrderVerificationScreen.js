@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import {
   AppScreen,
@@ -13,14 +14,14 @@ import {
 import { API_URL } from '../../context/AuthContext';
 import { colors, formatMoney, images } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
+import { downloadOrderInvoice } from '../../utils/invoice';
+import { getOrderImage } from '../../utils/orderDisplay';
 
 const summarizeItems = (order) =>
   (order.items || []).map((item) => `${item.name} x ${item.quantity}`).join(', ');
 
 const summarizeOrder = (order) =>
-  `${order.order_type === 'Bulk' ? 'Bulk - ' : ''}${summarizeItems(order)}${
-    order.bulk_note ? ` - ${order.bulk_note}` : ''
-  }`;
+  `${order.order_type === 'Bulk' ? 'Bulk - ' : ''}${summarizeItems(order)}`;
 
 const OrderVerificationScreen = () => {
   const orders = useApiResource('/orders?status=Pending,Ready', []);
@@ -29,6 +30,7 @@ const OrderVerificationScreen = () => {
   const readyOrders = (orders.data || []).filter((order) => order.status === 'Ready');
   const [selectedDeliveryByOrder, setSelectedDeliveryByOrder] = useState({});
   const [busyId, setBusyId] = useState('');
+  const [invoiceBusyId, setInvoiceBusyId] = useState('');
   const [message, setMessage] = useState('');
 
   const refresh = async () => {
@@ -83,6 +85,38 @@ const OrderVerificationScreen = () => {
     }
   };
 
+  const downloadInvoice = async (order) => {
+    if (invoiceBusyId) {
+      return;
+    }
+
+    try {
+      setInvoiceBusyId(order._id);
+      const result = await downloadOrderInvoice(order);
+      setMessage(result);
+    } catch (error) {
+      setMessage(error.message || 'Unable to download invoice.');
+    } finally {
+      setInvoiceBusyId('');
+    }
+  };
+
+  const renderInvoiceButton = (order) => (
+    <Pressable
+      disabled={Boolean(busyId) || invoiceBusyId === order._id}
+      style={[
+        styles.invoiceButton,
+        (Boolean(busyId) || invoiceBusyId === order._id) && styles.disabled,
+      ]}
+      onPress={() => downloadInvoice(order)}
+    >
+      <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.onBrand} />
+      <Text style={styles.invoiceButtonText}>
+        {invoiceBusyId === order._id ? 'Preparing...' : 'Download Invoice'}
+      </Text>
+    </Pressable>
+  );
+
   return (
     <AppScreen>
       <BrandHero
@@ -112,8 +146,10 @@ const OrderVerificationScreen = () => {
               subtitle={`${summarizeOrder(order)} - ${order.payment_method} / ${order.payment_status}`}
               right={formatMoney(order.final_amount)}
               status={order.status}
-              icon="clipboard-check-outline"
+              image={getOrderImage(order)}
             />
+            {!!order.bulk_note && <Text style={styles.vendorMessage}>vendor message :- {order.bulk_note}</Text>}
+            {renderInvoiceButton(order)}
             <PrimaryButton
               label="Pass to Production"
               icon="factory"
@@ -139,8 +175,10 @@ const OrderVerificationScreen = () => {
               subtitle={`${summarizeOrder(order)} - ${order.delivery_address?.location || 'Vendor outlet'}`}
               right={formatMoney(order.final_amount)}
               status={order.status}
-              icon="package-variant-closed-check"
+              image={getOrderImage(order)}
             />
+            {!!order.bulk_note && <Text style={styles.vendorMessage}>vendor message :- {order.bulk_note}</Text>}
+            {renderInvoiceButton(order)}
             <View style={styles.deliveryRow}>
               {(deliveryBoys.data || []).map((boy) => {
                 const isSelected = selectedDeliveryByOrder[order._id] === boy._id;
@@ -189,7 +227,36 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 10,
-    marginTop: -2,
+    marginTop: 4,
+  },
+  invoiceButton: {
+    alignItems: 'center',
+    backgroundColor: colors.red,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    marginBottom: 10,
+    marginTop: 4,
+    minHeight: 42,
+  },
+  vendorMessage: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  invoiceButtonText: {
+    color: colors.onBrand,
+    fontSize: 13,
+    fontWeight: '900',
   },
   deliveryChip: {
     backgroundColor: colors.white,

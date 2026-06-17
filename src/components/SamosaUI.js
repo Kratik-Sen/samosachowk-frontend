@@ -26,6 +26,8 @@ const statusColors = {
   active: colors.green,
   Active: colors.green,
   pending: colors.amber,
+  verified: colors.green,
+  rejected: colors.red,
   Pending: colors.amber,
   inactive: colors.muted,
   suspended: colors.red,
@@ -104,7 +106,7 @@ export const AppScreen = ({ children }) => {
       return;
     }
 
-    const adminRoutes = ['Admin Dashboard', 'Orders', 'Products', 'Access', 'Analytics', 'Logout'];
+    const adminRoutes = ['Admin Dashboard', 'Orders', 'Products', 'Access', 'Rewards', 'Analytics', 'Contact', 'Logout'];
     const fallbackRoute = adminRoutes.includes(route.name) ? 'Admin Dashboard' : 'Dashboard';
 
     if (route.name !== fallbackRoute) {
@@ -227,8 +229,8 @@ export const StatusPill = ({ status }) => {
   );
 };
 
-export const FoodCard = ({ item, onPress }) => (
-  <Pressable style={({ pressed }) => [styles.foodCard, pressed && styles.pressed]} onPress={onPress}>
+export const FoodCard = ({ item, onPress, embedded = false }) => (
+  <Pressable style={({ pressed }) => [styles.foodCard, embedded && styles.foodCardEmbedded, pressed && styles.pressed]} onPress={onPress}>
     <Image source={imageSource(item.image || images.heroSamosa)} style={styles.foodImage} />
     <View style={styles.foodContent}>
       <View style={styles.foodTop}>
@@ -601,6 +603,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...shadows.soft,
   },
+  foodCardEmbedded: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    marginBottom: 0,
+    padding: 0,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: 'none' }
+      : {
+          elevation: 0,
+          shadowOpacity: 0,
+        }),
+  },
   foodImage: {
     backgroundColor: colors.surface,
     borderRadius: 8,
@@ -697,6 +711,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     justifyContent: 'center',
+    marginVertical: 2,
     minHeight: 48,
     paddingHorizontal: 14,
     ...shadows.soft,

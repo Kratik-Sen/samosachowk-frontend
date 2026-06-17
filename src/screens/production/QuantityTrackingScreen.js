@@ -60,6 +60,7 @@ const QuantityTrackingScreen = () => {
               status={order.status}
               icon="clipboard-text-outline"
             />
+            {!!order.bulk_note && <Text style={styles.vendorMessage}>vendor message :- {order.bulk_note}</Text>}
             {order.status === 'Verified' ? (
               <PrimaryButton
                 label="Start Production"
@@ -97,6 +98,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 12,
     textAlign: 'center',
+  },
+  vendorMessage: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 });
 

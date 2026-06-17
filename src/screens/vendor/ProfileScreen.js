@@ -22,6 +22,7 @@ const ProfileScreen = () => {
   const [invoiceMessage, setInvoiceMessage] = useState('');
   const [invoiceBusyId, setInvoiceBusyId] = useState('');
   const isMountedRef = useRef(true);
+  const canDownloadInvoices = ['vendor', 'sales', 'admin'].includes(user?.role);
 
   useEffect(() => () => {
     isMountedRef.current = false;
@@ -90,7 +91,7 @@ const ProfileScreen = () => {
   };
 
   const downloadInvoice = async (order) => {
-    if (invoiceBusyId) {
+    if (!canDownloadInvoices || invoiceBusyId) {
       return;
     }
 
@@ -124,7 +125,7 @@ const ProfileScreen = () => {
 
         <View style={styles.historySection}>
           <SectionTitle title="Order History" action="Last 20 days" />
-          {!!invoiceMessage && <Text style={styles.historyMessage}>{invoiceMessage}</Text>}
+          {canDownloadInvoices && !!invoiceMessage && <Text style={styles.historyMessage}>{invoiceMessage}</Text>}
           <DataState
             isLoading={isHistoryLoading && !history.length}
             error={!history.length ? historyError : ''}
@@ -139,20 +140,22 @@ const ProfileScreen = () => {
                   status={order.status}
                   image={getOrderImage(order)}
                 />
-                <Pressable
-                  disabled={invoiceBusyId === order._id}
-                  style={({ pressed }) => [
-                    styles.invoiceButton,
-                    pressed && styles.pressed,
-                    invoiceBusyId === order._id && styles.disabled,
-                  ]}
-                  onPress={() => downloadInvoice(order)}
-                >
-                  <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.onBrand} />
-                  <Text style={styles.invoiceButtonText}>
-                    {invoiceBusyId === order._id ? 'Preparing...' : 'Invoice PDF'}
-                  </Text>
-                </Pressable>
+                {canDownloadInvoices && (
+                  <Pressable
+                    disabled={invoiceBusyId === order._id}
+                    style={({ pressed }) => [
+                      styles.invoiceButton,
+                      pressed && styles.pressed,
+                      invoiceBusyId === order._id && styles.disabled,
+                    ]}
+                    onPress={() => downloadInvoice(order)}
+                  >
+                    <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.onBrand} />
+                    <Text style={styles.invoiceButtonText}>
+                      {invoiceBusyId === order._id ? 'Preparing...' : 'Invoice PDF'}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             ))}
           </DataState>
@@ -255,7 +258,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
     justifyContent: 'center',
-    marginTop: -2,
+    marginTop: 4,
     minHeight: 42,
     ...shadows.soft,
   },

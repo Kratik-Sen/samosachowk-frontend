@@ -143,6 +143,18 @@ const PlaceOrderScreen = () => {
     }));
   };
 
+  const setProductQuantity = (productId, quantity) => {
+    setQuantities((current) => ({
+      ...current,
+      [productId]: Math.max(0, Math.min(9999, Number(quantity || 0))),
+    }));
+  };
+
+  const updateQuantityInput = (productId, value) => {
+    const digits = String(value || '').replace(/[^\d]/g, '');
+    setProductQuantity(productId, digits ? Number(digits) : 0);
+  };
+
   const captureVendorLocation = async (showSuccess = false) => {
     if (isLocating) {
       return vendorLocation;
@@ -257,7 +269,7 @@ const PlaceOrderScreen = () => {
         delivery_mode: 'Delivery',
         delivery_address: deliveryAddress,
         order_type: isBulkOrder ? 'Bulk' : 'Regular',
-        bulk_note: isBulkOrder ? bulkNote : '',
+        bulk_note: bulkNote.trim(),
       });
       playOrderSound();
       setQuantities({});
@@ -323,16 +335,19 @@ const PlaceOrderScreen = () => {
           </Pressable>
         ))}
       </View>
-      {isBulkOrder && (
-        <TextInput
-          value={bulkNote}
-          onChangeText={setBulkNote}
-          placeholder="Bulk order note, timing, cartons, or packing instruction"
-          style={[styles.input, styles.noteInput]}
-          placeholderTextColor="#8A8A8A"
-          multiline
-        />
-      )}
+      <SectionTitle title="Vendor Message" action="Optional" />
+      <TextInput
+        value={bulkNote}
+        onChangeText={setBulkNote}
+        placeholder={
+          isBulkOrder
+            ? 'Bulk order note, timing, cartons, or packing instruction'
+            : 'Message for sales and production team'
+        }
+        style={[styles.input, styles.noteInput]}
+        placeholderTextColor="#8A8A8A"
+        multiline
+      />
 
       <SectionTitle title="Category-wise Products" action="Tap + to add" />
       <DataState isLoading={products.isLoading} error={products.error} empty={!filteredProducts.length}>
@@ -342,21 +357,49 @@ const PlaceOrderScreen = () => {
 
           return (
             <View key={item._id} style={[styles.productWrap, isFocused && styles.productWrapFocused]}>
-              <FoodCard item={item} />
-              {quantity > 0 ? (
-                <View style={styles.stepper}>
-                  <Pressable style={styles.stepperButton} onPress={() => changeQuantity(item._id, -1)}>
-                    <Text style={styles.stepperText}>-</Text>
+              <FoodCard item={item} embedded />
+              {isBulkOrder ? (
+                <View style={styles.productControls}>
+                  <TextInput
+                    value={quantity ? String(quantity) : ''}
+                    onChangeText={(value) => updateQuantityInput(item._id, value)}
+                    placeholder="enter quantity"
+                    keyboardType="number-pad"
+                    style={styles.quantityInput}
+                    placeholderTextColor="#8A8A8A"
+                  />
+                  <Pressable
+                    style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+                    onPress={() => changeQuantity(item._id, 1)}
+                  >
+                    <Text style={styles.addButtonText}>{quantity ? 'Add +1' : 'Add +'}</Text>
                   </Pressable>
-                  <Text style={styles.quantity}>{quantity}</Text>
-                  <Pressable style={styles.stepperButton} onPress={() => changeQuantity(item._id, 1)}>
-                    <Text style={styles.stepperText}>+</Text>
-                  </Pressable>
+                  {quantity > 0 && (
+                    <Pressable style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]} onPress={() => setProductQuantity(item._id, 0)}>
+                      <Text style={styles.clearButtonText}>Clear</Text>
+                    </Pressable>
+                  )}
                 </View>
               ) : (
-                <Pressable style={({ pressed }) => [styles.addButton, pressed && styles.pressed]} onPress={() => changeQuantity(item._id, 1)}>
-                  <Text style={styles.addButtonText}>Add +</Text>
-                </Pressable>
+                <>
+                  {quantity > 0 ? (
+                    <View style={styles.productControls}>
+                      <Pressable style={styles.stepperButton} onPress={() => changeQuantity(item._id, -1)}>
+                        <Text style={styles.stepperText}>-</Text>
+                      </Pressable>
+                      <Text style={styles.quantity}>{quantity}</Text>
+                      <Pressable style={styles.stepperButton} onPress={() => changeQuantity(item._id, 1)}>
+                        <Text style={styles.stepperText}>+</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <>
+                      <Pressable style={({ pressed }) => [styles.singleAddButton, pressed && styles.pressed]} onPress={() => changeQuantity(item._id, 1)}>
+                        <Text style={styles.addButtonText}>Add +</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </>
               )}
             </View>
           );
@@ -485,54 +528,72 @@ const styles = StyleSheet.create({
     color: colors.onBrand,
   },
   productWrap: {
+    backgroundColor: colors.white,
+    borderColor: colors.contrastBorder,
     borderRadius: 8,
-    marginBottom: 10,
-    position: 'relative',
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 10,
+    ...shadows.soft,
   },
   productWrapFocused: {
     backgroundColor: colors.greenSoft,
-    padding: 3,
+    borderColor: colors.green,
   },
-  addButton: {
+  productControls: {
     alignItems: 'center',
-    backgroundColor: colors.white,
-    borderColor: colors.red,
-    borderRadius: 8,
-    borderWidth: 1,
-    bottom: 12,
-    height: 32,
-    justifyContent: 'center',
-    minWidth: 78,
-    paddingHorizontal: 12,
-    position: 'absolute',
-    right: 12,
-    ...shadows.soft,
-  },
-  addButtonText: {
-    color: colors.red,
-    fontSize: 13,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-  },
-  stepper: {
-    alignItems: 'center',
+    alignSelf: 'flex-end',
     backgroundColor: colors.white,
     borderColor: colors.border,
     borderRadius: 8,
     borderWidth: 1,
-    bottom: 12,
     flexDirection: 'row',
-    position: 'absolute',
-    right: 12,
-    ...shadows.soft,
+    flexWrap: 'nowrap',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+    minHeight: 40,
+    overflow: 'hidden',
+  },
+  addButton: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: colors.red,
+    borderColor: colors.red,
+    borderLeftColor: colors.border,
+    borderLeftWidth: 1,
+    justifyContent: 'center',
+    minWidth: 78,
+    paddingHorizontal: 12,
+  },
+  regularAddButton: {
+    borderLeftWidth: 0,
+  },
+  singleAddButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    backgroundColor: colors.red,
+    borderColor: colors.red,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    marginTop: 12,
+    minHeight: 40,
+    minWidth: 92,
+    paddingHorizontal: 14,
+  },
+  addButtonText: {
+    color: colors.onBrand,
+    fontSize: 13,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   stepperButton: {
     alignItems: 'center',
+    alignSelf: 'stretch',
     backgroundColor: colors.red,
-    borderRadius: 8,
-    height: 30,
     justifyContent: 'center',
-    width: 30,
+    minHeight: 40,
+    width: 42,
   },
   stepperText: {
     color: colors.onBrand,
@@ -543,8 +604,36 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 15,
     fontWeight: '900',
+    lineHeight: 40,
+    minHeight: 40,
     minWidth: 34,
+    paddingHorizontal: 12,
     textAlign: 'center',
+  },
+  quantityInput: {
+    backgroundColor: 'transparent',
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '900',
+    minHeight: 40,
+    minWidth: 92,
+    paddingHorizontal: 12,
+    textAlign: 'center',
+  },
+  clearButton: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: colors.white,
+    borderLeftColor: colors.border,
+    borderLeftWidth: 1,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  clearButtonText: {
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: '900',
   },
   pressed: {
     opacity: 0.84,

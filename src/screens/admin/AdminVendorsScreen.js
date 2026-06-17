@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     justifyContent: 'flex-end',
-    marginTop: -6,
+    marginTop: 4,
   },
   detailsButton: {
     backgroundColor: colors.black,
@@ -966,7 +966,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     marginBottom: 8,
-    marginTop: -2,
+    marginTop: 4,
     padding: 10,
   },
   resetNoticeTitle: {

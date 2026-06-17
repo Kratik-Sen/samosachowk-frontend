@@ -5,7 +5,8 @@ import { API_URL, useAuth } from '../context/AuthContext';
 import { useRealtime, useRealtimeEvent } from '../context/RealtimeContext';
 
 const pathDomains = [
-  { test: (path) => path.startsWith('/admin/overview'), domains: ['admin', 'orders', 'products', 'users', 'vendors', 'deliveries', 'wallet', 'production'] },
+  { test: (path) => path.startsWith('/admin/overview'), domains: ['admin', 'orders', 'products', 'users', 'vendors', 'deliveries', 'wallet', 'production', 'rewards'] },
+  { test: (path) => path.startsWith('/admin/rewards'), domains: ['admin', 'wallet', 'vendors', 'rewards'] },
   { test: (path) => path.startsWith('/admin/users'), domains: ['admin', 'users', 'vendors', 'deliveries'] },
   { test: (path) => path.startsWith('/admin/outlets'), domains: ['admin', 'vendors', 'users'] },
   { test: (path) => path.startsWith('/sales/dashboard'), domains: ['sales', 'orders', 'vendors', 'users', 'deliveries'] },
@@ -18,7 +19,7 @@ const pathDomains = [
   { test: (path) => path.startsWith('/vendors/dashboard'), domains: ['vendors', 'orders', 'wallet'] },
   { test: (path) => path.startsWith('/vendors/orders'), domains: ['vendors', 'orders', 'deliveries'] },
   { test: (path) => path.startsWith('/vendors/profile'), domains: ['vendors', 'users'] },
-  { test: (path) => path.startsWith('/wallet'), domains: ['wallet'] },
+  { test: (path) => path.startsWith('/wallet'), domains: ['wallet', 'rewards'] },
   { test: (path) => path.startsWith('/products'), domains: ['products'] },
   { test: (path) => path.startsWith('/orders'), domains: ['orders', 'deliveries'] },
 ];

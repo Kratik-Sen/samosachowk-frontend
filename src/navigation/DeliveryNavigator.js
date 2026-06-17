@@ -6,6 +6,7 @@ import DeliveryDashboardScreen from '../screens/delivery/DeliveryDashboardScreen
 import DeliveryTrackingScreen from '../screens/delivery/DeliveryTrackingScreen';
 import PaymentCollectionScreen from '../screens/delivery/PaymentCollectionScreen';
 import ProfileScreen from '../screens/vendor/ProfileScreen';
+import ContactScreen from '../screens/ContactScreen';
 import { useApiResource } from '../hooks/useApiResource';
 import { useDataArrivalSound } from '../hooks/useDataArrivalSound';
 import { getPanelTabScreenOptions } from './tabBarTheme';
@@ -41,6 +42,8 @@ const DeliveryNavigator = () => {
             iconName = focused ? 'map-marker-path' : 'map-marker-outline';
           } else if (route.name === 'Payments') {
             iconName = focused ? 'cash-multiple' : 'cash';
+          } else if (route.name === 'Contact') {
+            iconName = focused ? 'map-marker-radius' : 'map-marker-radius-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'account' : 'account-outline';
           }
@@ -61,6 +64,7 @@ const DeliveryNavigator = () => {
       <Tab.Screen name="Dashboard" component={DeliveryDashboardScreen} />
       <Tab.Screen name="Tracking" component={DeliveryTrackingScreen} />
       <Tab.Screen name="Payments" component={PaymentCollectionScreen} />
+      <Tab.Screen name="Contact" component={ContactScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

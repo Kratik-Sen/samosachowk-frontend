@@ -16,6 +16,8 @@ const escapePdfText = (value) =>
     .replace(/\)/g, '\\)');
 
 const moneyText = (value) => `Rs ${Number(value || 0).toLocaleString('en-IN')}`;
+const PDF_IMAGE_WIDTH = 132;
+const PDF_IMAGE_HEIGHT = 92;
 
 const wrapLine = (value, maxLength = 88) => {
   const text = cleanText(value);
@@ -48,6 +50,93 @@ const wrapLine = (value, maxLength = 88) => {
 };
 
 const getInvoiceFileName = (order) => `samosa-chowk-invoice-${getOrderShortId(order)}.pdf`;
+
+const getInvoiceDishImage = (order) => {
+  const itemWithImage = (order?.items || []).find(
+    (item) => item?.product && typeof item.product === 'object' && item.product.image
+  );
+
+  return itemWithImage?.product?.image || '';
+};
+
+const stringToBytes = (value) => {
+  const bytes = new Uint8Array(value.length);
+
+  for (let index = 0; index < value.length; index += 1) {
+    bytes[index] = value.charCodeAt(index) & 0xff;
+  }
+
+  return bytes;
+};
+
+const concatBytes = (parts) => {
+  const normalizedParts = parts.map((part) => (typeof part === 'string' ? stringToBytes(part) : part));
+  const totalLength = normalizedParts.reduce((sum, part) => sum + part.length, 0);
+  const output = new Uint8Array(totalLength);
+  let offset = 0;
+
+  normalizedParts.forEach((part) => {
+    output.set(part, offset);
+    offset += part.length;
+  });
+
+  return output;
+};
+
+const base64ToBytes = (base64) => {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+};
+
+const loadInvoiceImage = async (order) => {
+  const imageUrl = getInvoiceDishImage(order);
+
+  if (Platform.OS !== 'web' || !imageUrl || typeof window === 'undefined' || typeof document === 'undefined') {
+    return null;
+  }
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const nextImage = new window.Image();
+      nextImage.crossOrigin = 'anonymous';
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error('Unable to load invoice image'));
+      nextImage.src = imageUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 520;
+    canvas.height = 360;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      return null;
+    }
+
+    context.fillStyle = '#FFFFFF';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const scale = Math.min(canvas.width / image.width, canvas.height / image.height);
+    const width = image.width * scale;
+    const height = image.height * scale;
+    const x = (canvas.width - width) / 2;
+    const y = (canvas.height - height) / 2;
+    context.drawImage(image, x, y, width, height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
+
+    return {
+      bytes: base64ToBytes(dataUrl.split(',')[1]),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  } catch (error) {
+    return null;
+  }
+};
 
 const buildInvoiceLines = (order) => {
   const gstRate = Number(order?.gst_rate ?? FALLBACK_GST_RATE);
@@ -87,7 +176,7 @@ const buildInvoiceLines = (order) => {
   return lines;
 };
 
-const buildInvoicePdf = (order) => {
+const buildInvoicePdf = (order, invoiceImage = null) => {
   let y = 742;
   const content = buildInvoiceLines(order)
     .slice(0, 40)
@@ -99,33 +188,52 @@ const buildInvoicePdf = (order) => {
       return command;
     })
     .join('\n');
-  const streamContent = `${content}\n`;
+  const imageContent = invoiceImage
+    ? `q ${PDF_IMAGE_WIDTH} 0 0 ${PDF_IMAGE_HEIGHT} 430 650 cm /Im1 Do Q\nBT /F2 9 Tf 430 638 Td (Dish image) Tj ET\n`
+    : '';
+  const streamContent = `${imageContent}${content}\n`;
+  const resources = invoiceImage
+    ? '/Resources << /Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Im1 7 0 R >> >>'
+    : '/Resources << /Font << /F1 4 0 R /F2 5 0 R >> >>';
 
   const objects = [
-    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
-    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
-    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>\nendobj\n',
-    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
-    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n',
-    `6 0 obj\n<< /Length ${streamContent.length} >>\nstream\n${streamContent}endstream\nendobj\n`,
+    ['1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n'],
+    ['2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n'],
+    [`3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] ${resources} /Contents 6 0 R >>\nendobj\n`],
+    ['4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n'],
+    ['5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n'],
+    [`6 0 obj\n<< /Length ${streamContent.length} >>\nstream\n${streamContent}endstream\nendobj\n`],
   ];
-  const offsets = [0];
-  let pdf = '%PDF-1.4\n';
 
-  objects.forEach((object) => {
-    offsets.push(pdf.length);
-    pdf += object;
-  });
-
-  const xrefStart = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-
-  for (let index = 1; index <= objects.length; index += 1) {
-    pdf += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
+  if (invoiceImage) {
+    objects.push([
+      `7 0 obj\n<< /Type /XObject /Subtype /Image /Width ${invoiceImage.width} /Height ${invoiceImage.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${invoiceImage.bytes.length} >>\nstream\n`,
+      invoiceImage.bytes,
+      '\nendstream\nendobj\n',
+    ]);
   }
 
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-  return pdf;
+  const offsets = [0];
+  const pdfParts = ['%PDF-1.4\n'];
+  let pdfLength = '%PDF-1.4\n'.length;
+
+  objects.forEach((object) => {
+    const objectBytes = concatBytes(object);
+    offsets.push(pdfLength);
+    pdfParts.push(objectBytes);
+    pdfLength += objectBytes.length;
+  });
+
+  const xrefStart = pdfLength;
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+
+  for (let index = 1; index <= objects.length; index += 1) {
+    xref += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
+  }
+
+  xref += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  pdfParts.push(xref);
+  return concatBytes(pdfParts);
 };
 
 const buildInvoiceShareText = (order) =>
@@ -138,7 +246,8 @@ export const downloadOrderInvoice = async (order) => {
   const fileName = getInvoiceFileName(order);
 
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
-    const blob = new Blob([buildInvoicePdf(order)], { type: 'application/pdf' });
+    const invoiceImage = await loadInvoiceImage(order);
+    const blob = new Blob([buildInvoicePdf(order, invoiceImage)], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

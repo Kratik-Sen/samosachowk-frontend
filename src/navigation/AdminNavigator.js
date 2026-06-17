@@ -8,7 +8,9 @@ import AdminOrdersScreen from '../screens/admin/AdminOrdersScreen';
 import AdminProductsScreen from '../screens/admin/AdminProductsScreen';
 import AdminVendorsScreen from '../screens/admin/AdminVendorsScreen';
 import AdminAnalyticsScreen from '../screens/admin/AdminAnalyticsScreen';
+import AdminRewardsScreen from '../screens/admin/AdminRewardsScreen';
 import AdminLogoutScreen from '../screens/admin/AdminLogoutScreen';
+import ContactScreen from '../screens/ContactScreen';
 import { useApiResource } from '../hooks/useApiResource';
 import { useRealtimeActionSound } from '../hooks/useRealtimeNotificationSound';
 
@@ -35,10 +37,12 @@ const AdminNavigator = () => {
   const { palette } = useThemeMode();
   const users = useApiResource('/admin/users', []);
   const orders = useApiResource('/orders', []);
+  const rewards = useApiResource('/admin/rewards', []);
   const accessBadge = (users.data || []).filter(
     (member) => member.passwordResetRequested || (member.role !== 'vendor' && member.status === 'pending')
   ).length;
   const ordersBadge = (orders.data || []).filter((order) => attentionOrderStatuses.includes(order.status)).length;
+  const rewardsBadge = (rewards.data || []).filter((request) => request.status === 'pending').length;
 
   useRealtimeActionSound({
     actions: ['created', 'verified', 'production-started', 'ready', 'delivery-assigned', 'status-updated'],
@@ -46,6 +50,7 @@ const AdminNavigator = () => {
     sound: 'order',
   });
   useRealtimeActionSound({ actions: ['accepted', 'delivered'], entity: 'delivery', sound: 'delivery' });
+  useRealtimeActionSound({ actions: ['redeem-requested'], entity: 'reward-redemption', sound: 'dot' });
 
   return (
     <Drawer.Navigator
@@ -104,11 +109,26 @@ const AdminNavigator = () => {
           drawerIcon: ({ color }) => <MaterialCommunityIcons name="account-key" size={22} color={color} />
         }}
       />
+      <Drawer.Screen
+        name="Rewards"
+        component={AdminRewardsScreen}
+        options={{
+          drawerLabel: ({ color }) => <DrawerLabel label="Rewards" count={rewardsBadge} color={color} />,
+          drawerIcon: ({ color }) => <MaterialCommunityIcons name="gift-outline" size={22} color={color} />
+        }}
+      />
       <Drawer.Screen 
         name="Analytics" 
         component={AdminAnalyticsScreen}
         options={{
           drawerIcon: ({ color }) => <MaterialCommunityIcons name="chart-bar" size={22} color={color} />
+        }}
+      />
+      <Drawer.Screen
+        name="Contact"
+        component={ContactScreen}
+        options={{
+          drawerIcon: ({ color }) => <MaterialCommunityIcons name="map-marker-radius" size={22} color={color} />
         }}
       />
       <Drawer.Screen
