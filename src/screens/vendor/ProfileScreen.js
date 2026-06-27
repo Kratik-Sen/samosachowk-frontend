@@ -1,17 +1,52 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { AppScreen, DataState, InfoCard, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import { API_URL, useAuth } from '../../context/AuthContext';
+import { useApiResource } from '../../hooks/useApiResource';
 import { colors, formatMoney, imageSource, images, shadows } from '../../theme/brand';
 import { downloadOrderInvoice } from '../../utils/invoice';
 import { formatOrderDate, getOrderImage, getOrderShortId, summarizeOrderItems } from '../../utils/orderDisplay';
 
 const HISTORY_PAGE_SIZE = 8;
+const emptyVendorForm = {
+  name: '',
+  phone: '',
+  store_name: '',
+  gst_number: '',
+  address: '',
+  city: '',
+  state: '',
+  zip: '',
+};
 
-const ProfileScreen = () => {
-  const { user, logout } = useAuth();
+const trimForm = (form) =>
+  Object.keys(form).reduce((acc, key) => {
+    acc[key] = String(form[key] || '').trim();
+    return acc;
+  }, {});
+
+const isPlaceholderValue = (value) => String(value || '').trim().toLowerCase() === 'not provided';
+
+const isDefaultOutletName = (storeName, ownerName) => {
+  const normalizedStoreName = String(storeName || '').trim().toLowerCase();
+  const normalizedOwnerName = String(ownerName || '').trim().toLowerCase();
+
+  return Boolean(normalizedOwnerName && normalizedStoreName === `${normalizedOwnerName}'s outlet`);
+};
+
+const displayProfileValue = (value) => (isPlaceholderValue(value) ? '' : value || '');
+
+const displayStoreName = (storeName, ownerName) =>
+  isDefaultOutletName(storeName, ownerName) ? '' : displayProfileValue(storeName);
+
+const ProfileScreen = ({ completionOnly = false }) => {
+  const { user, logout, updateUser } = useAuth();
+  const vendorProfile = useApiResource('/vendors/profile', null, { enabled: user?.role === 'vendor' });
+  const [vendorForm, setVendorForm] = useState(emptyVendorForm);
+  const [profileMessage, setProfileMessage] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyPage, setHistoryPage] = useState(1);
@@ -22,14 +57,43 @@ const ProfileScreen = () => {
   const [invoiceMessage, setInvoiceMessage] = useState('');
   const [invoiceBusyId, setInvoiceBusyId] = useState('');
   const isMountedRef = useRef(true);
+  const vendorFormDirtyRef = useRef(false);
   const canDownloadInvoices = ['vendor', 'sales', 'admin'].includes(user?.role);
+  const isVendor = user?.role === 'vendor';
+  const isProfileComplete = Boolean(vendorProfile.data?.profile_complete);
 
   useEffect(() => () => {
     isMountedRef.current = false;
   }, []);
 
+  useEffect(() => {
+    const profile = vendorProfile.data;
+
+    if (!profile) {
+      return;
+    }
+
+    if (vendorFormDirtyRef.current) {
+      return;
+    }
+
+    const location = profile.location || {};
+    const ownerName = profile.user?.name || user?.name || profile.owner_name || '';
+
+    setVendorForm({
+      name: displayProfileValue(ownerName),
+      phone: displayProfileValue(profile.user?.phone || user?.phone),
+      store_name: displayStoreName(profile.store_name, ownerName),
+      gst_number: displayProfileValue(profile.gst_number),
+      address: displayProfileValue(location.address),
+      city: displayProfileValue(location.city),
+      state: displayProfileValue(location.state),
+      zip: displayProfileValue(location.zip),
+    });
+  }, [vendorProfile.data, user?.name, user?.phone]);
+
   const loadOrderHistory = useCallback(async (pageToLoad = 1) => {
-    if (!user?.token) {
+    if (!user?.token || completionOnly) {
       setIsHistoryLoading(false);
       return;
     }
@@ -69,7 +133,7 @@ const ProfileScreen = () => {
         setIsHistoryLoadingMore(false);
       }
     }
-  }, [user?.token]);
+  }, [completionOnly, user?.token]);
 
   useEffect(() => {
     loadOrderHistory(1);
@@ -108,6 +172,61 @@ const ProfileScreen = () => {
     }
   };
 
+  const updateVendorField = (field, value) => {
+    vendorFormDirtyRef.current = true;
+    setVendorForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const saveVendorProfile = async () => {
+    if (isSavingProfile) {
+      return;
+    }
+
+    const nextForm = trimForm(vendorForm);
+    const missingFields = ['name', 'phone', 'store_name', 'address', 'city', 'state', 'zip'].filter(
+      (field) => !nextForm[field]
+    );
+
+    if (missingFields.length) {
+      setProfileMessage('Fill member name, phone, outlet name, address, city, state, and ZIP / PIN.');
+      return;
+    }
+
+    try {
+      setIsSavingProfile(true);
+      setProfileMessage('');
+      const { data } = await axios.put(`${API_URL}/vendors/profile`, {
+        name: nextForm.name,
+        phone: nextForm.phone,
+        store_name: nextForm.store_name,
+        owner_name: nextForm.name,
+        gst_number: nextForm.gst_number,
+        location: {
+          address: nextForm.address,
+          city: nextForm.city,
+          state: nextForm.state,
+          zip: nextForm.zip,
+        },
+      });
+
+      vendorFormDirtyRef.current = false;
+      vendorProfile.setData(data);
+      await updateUser({
+        name: data.user?.name || nextForm.name,
+        phone: data.user?.phone || nextForm.phone,
+        vendor_profile_complete: Boolean(data.profile_complete),
+        vendor_missing_profile_fields: data.missing_profile_fields || [],
+      });
+      setProfileMessage('Outlet details saved.');
+    } catch (error) {
+      setProfileMessage(error.response?.data?.message || 'Unable to save outlet details.');
+    } finally {
+      if (isMountedRef.current) {
+        setIsSavingProfile(false);
+      }
+    }
+  };
+
   return (
     <AppScreen>
       <View style={styles.content}>
@@ -116,14 +235,112 @@ const ProfileScreen = () => {
         <Text style={styles.meta}>{user?.email}</Text>
         <Text style={styles.badge}>{user?.role || 'vendor'}</Text>
 
-        <View style={styles.details}>
+        {isVendor && (
+          <View style={styles.profileSection}>
+            <SectionTitle
+              title={completionOnly ? 'Complete Vendor Details' : 'Vendor Details'}
+              action={isProfileComplete ? 'Complete' : 'Required'}
+            />
+            <DataState
+              isLoading={vendorProfile.isLoading && !vendorProfile.data}
+              error={!vendorProfile.data ? vendorProfile.error : ''}
+              empty={false}
+            >
+              <View style={styles.vendorForm}>
+                <Text style={styles.formHint}>
+                  {completionOnly
+                    ? 'Add your outlet details to continue.'
+                    : 'Update your outlet details anytime.'}
+                </Text>
+                <TextInput
+                  value={vendorForm.name}
+                  onChangeText={(value) => updateVendorField('name', value)}
+                  placeholder="Member name"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={user?.email || ''}
+                  editable={false}
+                  placeholder="Email"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  style={[styles.input, styles.readOnlyInput]}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={vendorForm.phone}
+                  onChangeText={(value) => updateVendorField('phone', value)}
+                  placeholder="Phone"
+                  keyboardType="phone-pad"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={vendorForm.store_name}
+                  onChangeText={(value) => updateVendorField('store_name', value)}
+                  placeholder="Outlet / store name"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={vendorForm.address}
+                  onChangeText={(value) => updateVendorField('address', value)}
+                  placeholder="Outlet address"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={vendorForm.city}
+                  onChangeText={(value) => updateVendorField('city', value)}
+                  placeholder="City"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={vendorForm.state}
+                  onChangeText={(value) => updateVendorField('state', value)}
+                  placeholder="State"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={vendorForm.zip}
+                  onChangeText={(value) => updateVendorField('zip', value)}
+                  placeholder="ZIP / PIN code"
+                  keyboardType="number-pad"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                <TextInput
+                  value={vendorForm.gst_number}
+                  onChangeText={(value) => updateVendorField('gst_number', value)}
+                  placeholder="GST number (optional)"
+                  autoCapitalize="characters"
+                  style={styles.input}
+                  placeholderTextColor="#8A8A8A"
+                />
+                {!!profileMessage && <Text style={styles.profileMessage}>{profileMessage}</Text>}
+                <PrimaryButton
+                  label={completionOnly ? 'Save and Continue' : 'Save Vendor Details'}
+                  icon="content-save"
+                  loading={isSavingProfile}
+                  loadingLabel="Saving..."
+                  onPress={saveVendorProfile}
+                />
+              </View>
+            </DataState>
+          </View>
+        )}
+
+        {!completionOnly && <View style={styles.details}>
           <Text style={styles.label}>Phone</Text>
           <Text style={styles.value}>{user?.phone || 'Not available'}</Text>
           <Text style={styles.label}>Status</Text>
           <Text style={styles.value}>{user?.status || 'pending'}</Text>
-        </View>
+        </View>}
 
-        <View style={styles.historySection}>
+        {!completionOnly && <View style={styles.historySection}>
           <SectionTitle title="Order History" action="Last 20 days" />
           {canDownloadInvoices && !!invoiceMessage && <Text style={styles.historyMessage}>{invoiceMessage}</Text>}
           <DataState
@@ -170,7 +387,7 @@ const ProfileScreen = () => {
               onPress={() => loadOrderHistory(historyPage + 1)}
             />
           )}
-        </View>
+        </View>}
 
         <Pressable
           disabled={isLoggingOut}
@@ -219,6 +436,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     textTransform: 'uppercase',
+  },
+  profileSection: {
+    marginTop: 24,
+  },
+  vendorForm: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 14,
+    ...shadows.soft,
+  },
+  formHint: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  input: {
+    backgroundColor: colors.cream,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.ink,
+    fontSize: 14,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  readOnlyInput: {
+    opacity: 0.68,
+  },
+  profileMessage: {
+    color: colors.redDark,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 10,
+    textAlign: 'center',
   },
   details: {
     backgroundColor: colors.white,

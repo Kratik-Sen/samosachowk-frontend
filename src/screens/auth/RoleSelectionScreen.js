@@ -9,7 +9,7 @@ export const roles = [
   {
     key: 'vendor',
     label: 'Vendor',
-    description: 'Login with admin-created outlet credential.',
+    description: 'Login or create an OTP-verified account.',
     icon: 'store',
   },
   {

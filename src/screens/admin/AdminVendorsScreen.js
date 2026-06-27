@@ -24,6 +24,20 @@ const initialForm = {
 
 const joinAddressParts = (parts) => parts.map((part) => String(part || '').trim()).filter(Boolean).join(', ');
 
+const isPlaceholderValue = (value) => String(value || '').trim().toLowerCase() === 'not provided';
+
+const isDefaultOutletName = (storeName, ownerName) => {
+  const normalizedStoreName = String(storeName || '').trim().toLowerCase();
+  const normalizedOwnerName = String(ownerName || '').trim().toLowerCase();
+
+  return Boolean(normalizedOwnerName && normalizedStoreName === `${normalizedOwnerName}'s outlet`);
+};
+
+const displayProfileValue = (value) => (isPlaceholderValue(value) ? '' : value || '');
+
+const displayStoreName = (storeName, ownerName) =>
+  isDefaultOutletName(storeName, ownerName) ? '' : displayProfileValue(storeName);
+
 const formatResetRequestedAt = (value) => {
   if (!value) {
     return 'Password reset requested';
@@ -262,11 +276,11 @@ const AdminVendorsScreen = () => {
       password: '',
       role: 'vendor',
       status: member.status || 'active',
-      store_name: outlet?.store_name || '',
-      address: location.address || '',
-      city: location.city || '',
-      state: location.state || '',
-      zip: location.zip || '',
+      store_name: displayStoreName(outlet?.store_name, member.name || outlet?.owner_name),
+      address: displayProfileValue(location.address),
+      city: displayProfileValue(location.city),
+      state: displayProfileValue(location.state),
+      zip: displayProfileValue(location.zip),
       lat: location.lat !== undefined ? String(location.lat) : '',
       lng: location.lng !== undefined ? String(location.lng) : '',
     });
@@ -350,6 +364,11 @@ const AdminVendorsScreen = () => {
     const isDeleting = busyAction === `delete-${member._id}`;
     const isPasswordSaving = busyAction === `password-${member._id}`;
     const isActionLocked = Boolean(busyAction) || isSaving;
+    const outletStoreName = displayStoreName(outlet?.store_name, member.name || outlet?.owner_name);
+    const outletAddress = displayProfileValue(outlet?.location?.address);
+    const outletCity = displayProfileValue(outlet?.location?.city);
+    const outletState = displayProfileValue(outlet?.location?.state);
+    const outletZip = displayProfileValue(outlet?.location?.zip);
 
     return (
       <View key={member._id} style={styles.rowWrap}>
@@ -453,17 +472,38 @@ const AdminVendorsScreen = () => {
         {member.role === 'vendor' && expandedVendorId === member._id && (
           <View style={styles.detailPanel}>
             {outlet ? (
-              <InfoCard
-                title={outlet.store_name}
-                subtitle={joinAddressParts([
-                  outlet.location?.address || 'Address not set',
-                  outlet.location?.city || '',
-                  outlet.location?.state || '',
-                  outlet.location?.zip || '',
-                ])}
-                status={member.status}
-                icon="store-outline"
-              />
+              <>
+                <InfoCard
+                  title={outletStoreName || 'Outlet name not set'}
+                  subtitle={joinAddressParts([
+                    outletAddress,
+                    outletCity,
+                    outletState,
+                    outletZip,
+                  ]) || 'Address not set'}
+                  right={outlet.profile_complete ? 'Complete' : 'Incomplete'}
+                  status={member.status}
+                  icon="store-outline"
+                />
+                <View style={styles.detailGrid}>
+                  {[
+                    ['Member name', member.name],
+                    ['Email', member.email],
+                    ['Phone', member.phone || 'Not set'],
+                    ['Outlet / store name', outletStoreName || 'Not set'],
+                    ['Outlet address', outletAddress || 'Not set'],
+                    ['City', outletCity || 'Not set'],
+                    ['State', outletState || 'Not set'],
+                    ['ZIP / PIN code', outletZip || 'Not set'],
+                    ['GST number', displayProfileValue(outlet.gst_number) || 'Not set'],
+                  ].map(([label, value]) => (
+                    <View key={label} style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>{label}</Text>
+                      <Text style={styles.detailValue}>{value}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
             ) : (
               <Text style={styles.detailEmpty}>No outlet profile found for this vendor.</Text>
             )}
@@ -992,6 +1032,31 @@ const styles = StyleSheet.create({
   },
   detailPanel: {
     marginTop: 8,
+  },
+  detailGrid: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 12,
+    ...shadows.soft,
+  },
+  detailRow: {
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    paddingVertical: 8,
+  },
+  detailLabel: {
+    color: colors.softText,
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 3,
+    textTransform: 'uppercase',
+  },
+  detailValue: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '800',
   },
   detailEmpty: {
     backgroundColor: colors.white,

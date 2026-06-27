@@ -31,7 +31,7 @@ const LoginScreen = ({ navigation, route }) => {
   const { login } = useAuth();
   const role = route.params?.role;
   const roleLabel = route.params?.roleLabel || 'User';
-  const canRequestAccess = ['sales', 'production', 'delivery'].includes(role);
+  const canRequestAccess = ['vendor', 'sales', 'production', 'delivery'].includes(role);
   const compactLayout = height < 760;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -83,7 +83,9 @@ const LoginScreen = ({ navigation, route }) => {
               <Text style={[styles.subtitle, compactLayout && styles.compactSubtitle]}>
                 {role === 'admin'
                   ? 'Use the single admin email and password configured in server .env.'
-                  : canRequestAccess
+                  : role === 'vendor'
+                    ? 'Login with your vendor credential or create an OTP-verified account.'
+                    : canRequestAccess
                     ? 'Sign in after admin verifies your signup request.'
                     : 'Sign in with the vendor credential created by admin.'}
               </Text>

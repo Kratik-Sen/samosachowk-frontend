@@ -8,6 +8,32 @@ export const API_URL = process.env.EXPO_PUBLIC_API_URL || defaultApiUrl;
 
 const AuthContext = createContext();
 
+const getApiErrorMessage = (error, fallback) => {
+  const data = error.response?.data;
+
+  if (data?.message) {
+    return data.message;
+  }
+
+  if (typeof data === 'string') {
+    const text = data.trim();
+
+    if (text && !text.startsWith('<')) {
+      return text;
+    }
+  }
+
+  if (error.request && !error.response) {
+    return `Could not reach the server at ${API_URL}. Check your internet connection and backend URL.`;
+  }
+
+  if (error.response?.status >= 500) {
+    return 'Server error while contacting the backend. Try again, and check the backend logs if it continues.';
+  }
+
+  return error.message || fallback;
+};
+
 export const useAuth = () => {
   return useContext(AuthContext);
 };
@@ -45,7 +71,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return { 
         success: false, 
-        message: error.response?.data?.message || 'Login failed' 
+        message: getApiErrorMessage(error, 'Login failed'),
       };
     }
   };
@@ -56,6 +82,7 @@ export const AuthProvider = ({ children }) => {
     phone,
     password,
     role,
+    verificationMethod,
   }) => {
     try {
       const { data } = await axios.post(`${API_URL}/auth/register`, {
@@ -64,12 +91,44 @@ export const AuthProvider = ({ children }) => {
         phone,
         password,
         role,
+        verificationMethod,
       });
       return { success: true, message: data.message || 'Signup request sent to admin.' };
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Signup request failed',
+        message: getApiErrorMessage(error, 'Signup request failed'),
+      };
+    }
+  };
+
+  const verifyVendorOtp = async ({ email, otp }) => {
+    try {
+      const { data } = await axios.post(`${API_URL}/auth/vendor/verify-otp`, {
+        email,
+        otp,
+      });
+      return { success: true, message: data.message || 'Vendor account verified. You can login now.' };
+    } catch (error) {
+      return {
+        success: false,
+        message: getApiErrorMessage(error, 'OTP verification failed'),
+      };
+    }
+  };
+
+  const resendVendorOtp = async ({ email, phone, verificationMethod }) => {
+    try {
+      const { data } = await axios.post(`${API_URL}/auth/vendor/resend-otp`, {
+        email,
+        phone,
+        verificationMethod,
+      });
+      return { success: true, message: data.message || 'OTP sent again.' };
+    } catch (error) {
+      return {
+        success: false,
+        message: getApiErrorMessage(error, 'Unable to resend OTP'),
       };
     }
   };
@@ -89,7 +148,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Admin setup failed',
+        message: getApiErrorMessage(error, 'Admin setup failed'),
       };
     }
   };
@@ -104,8 +163,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = async (nextFields) => {
+    if (!user) {
+      return;
+    }
+
+    const nextUser = { ...user, ...nextFields };
+    setUser(nextUser);
+
+    try {
+      await AsyncStorage.setItem('userInfo', JSON.stringify(nextUser));
+    } catch (error) {
+      console.error('Failed to save user update', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, bootstrapAdmin, logout, setUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, verifyVendorOtp, resendVendorOtp, bootstrapAdmin, logout, setUser, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

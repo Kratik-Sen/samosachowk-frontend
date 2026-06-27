@@ -17,7 +17,19 @@ import { useAuth } from '../../context/AuthContext';
 import { EntranceView } from '../../components/SamosaUI';
 import { colors, imageSource, images, shadows } from '../../theme/brand';
 
-const selfSignupRoles = ['sales', 'production', 'delivery'];
+const selfSignupRoles = ['vendor', 'sales', 'production', 'delivery'];
+const verificationOptions = [
+  {
+    key: 'whatsapp',
+    label: 'WhatsApp',
+    icon: require('../../../assets/whatsapp.png'),
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    icon: require('../../../assets/mail.png'),
+  },
+];
 
 const webScrollStyle = Platform.OS === 'web'
   ? {
@@ -30,10 +42,11 @@ const webScrollStyle = Platform.OS === 'web'
 
 const RegisterScreen = ({ navigation, route }) => {
   const { height } = useWindowDimensions();
-  const { register } = useAuth();
+  const { register, verifyVendorOtp, resendVendorOtp } = useAuth();
   const role = route.params?.role;
   const roleLabel = route.params?.roleLabel || 'Team';
   const compactLayout = height < 820;
+  const isVendorSignup = role === 'vendor';
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -41,11 +54,19 @@ const RegisterScreen = ({ navigation, route }) => {
     password: '',
     confirmPassword: '',
   });
+  const [verificationMethod, setVerificationMethod] = useState('whatsapp');
+  const [otp, setOtp] = useState('');
+  const [otpRequested, setOtpRequested] = useState(false);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+
+    if (isVendorSignup && ['name', 'email', 'phone', 'password'].includes(field)) {
+      setOtp('');
+      setOtpRequested(false);
+    }
   };
 
   const handleRegister = async () => {
@@ -56,12 +77,17 @@ const RegisterScreen = ({ navigation, route }) => {
     setMessage('');
 
     if (!selfSignupRoles.includes(role)) {
-      setMessage('Only sales, production, and delivery teams can request signup.');
+      setMessage('Select vendor, sales, production, or delivery for signup.');
       return;
     }
 
     if (!form.name.trim() || !form.email.trim() || !form.password) {
       setMessage('Name, email, and password are required.');
+      return;
+    }
+
+    if (isVendorSignup && !form.phone.trim()) {
+      setMessage('Vendor mobile number is required for OTP.');
       return;
     }
 
@@ -82,10 +108,18 @@ const RegisterScreen = ({ navigation, route }) => {
       phone: form.phone.trim(),
       password: form.password,
       role,
+      verificationMethod: isVendorSignup ? verificationMethod : undefined,
     });
     setIsSubmitting(false);
 
     if (result.success) {
+      if (isVendorSignup) {
+        setOtp('');
+        setOtpRequested(true);
+        setMessage(result.message || 'OTP sent. Verify it to activate your vendor account.');
+        return;
+      }
+
       setForm({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
       setMessage(result.message || 'Signup request sent to admin for verification.');
       return;
@@ -93,6 +127,64 @@ const RegisterScreen = ({ navigation, route }) => {
 
     setMessage(result.message);
   };
+
+  const handleVerifyOtp = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
+    setMessage('');
+
+    if (!form.email.trim() || !otp.trim()) {
+      setMessage('Enter the OTP sent to your selected contact.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await verifyVendorOtp({
+      email: form.email.trim().toLowerCase(),
+      otp: otp.trim(),
+    });
+    setIsSubmitting(false);
+
+    if (result.success) {
+      setForm({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
+      setOtp('');
+      setOtpRequested(false);
+      setMessage(result.message || 'Vendor account verified. You can login now.');
+      return;
+    }
+
+    setMessage(result.message);
+  };
+
+  const handleResendOtp = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
+    if (!form.email.trim() || !form.phone.trim()) {
+      setMessage('Email and vendor mobile number are required to resend OTP.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await resendVendorOtp({
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      verificationMethod,
+    });
+    setIsSubmitting(false);
+    setMessage(result.message);
+
+    if (result.success) {
+      setOtp('');
+      setOtpRequested(true);
+    }
+  };
+
+  const primaryAction = isVendorSignup && otpRequested ? handleVerifyOtp : handleRegister;
+  const primaryLabel = isVendorSignup ? (otpRequested ? 'Verify OTP' : 'Send OTP') : 'Send Request';
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
@@ -115,9 +207,13 @@ const RegisterScreen = ({ navigation, route }) => {
             />
             <View style={[styles.headerCopy, compactLayout && styles.compactHeaderCopy]}>
               <Text style={[styles.roleBadge, compactLayout && styles.compactRoleBadge]}>{roleLabel}</Text>
-              <Text style={[styles.title, compactLayout && styles.compactTitle]}>Request Access</Text>
+              <Text style={[styles.title, compactLayout && styles.compactTitle]}>
+                {isVendorSignup ? 'Create Vendor Account' : 'Request Access'}
+              </Text>
               <Text style={[styles.subtitle, compactLayout && styles.compactSubtitle]}>
-                Admin must verify your email and password before login works.
+                {isVendorSignup
+                  ? 'Choose email or WhatsApp and verify the OTP before login.'
+                  : 'Admin must verify your email and password before login works.'}
               </Text>
             </View>
           </View>
@@ -141,11 +237,44 @@ const RegisterScreen = ({ navigation, route }) => {
           <TextInput
             value={form.phone}
             onChangeText={(value) => updateField('phone', value)}
-            placeholder="Phone"
+            placeholder={isVendorSignup ? 'Vendor mobile number' : 'Phone'}
             keyboardType="phone-pad"
             style={[styles.input, compactLayout && styles.compactInput]}
             placeholderTextColor="#8A8A8A"
           />
+          {isVendorSignup && (
+            <View style={styles.verificationSection}>
+              <Text style={styles.verificationLabel}>Verify with</Text>
+              <View style={styles.verificationRow}>
+                {verificationOptions.map((option) => {
+                  const selected = verificationMethod === option.key;
+
+                  return (
+                    <Pressable
+                      key={option.key}
+                      disabled={isSubmitting}
+                      style={({ pressed }) => [
+                        styles.verificationButton,
+                        selected && styles.verificationButtonActive,
+                        pressed && styles.pressed,
+                        isSubmitting && styles.disabled,
+                      ]}
+                      onPress={() => {
+                        setVerificationMethod(option.key);
+                        setOtp('');
+                        setOtpRequested(false);
+                      }}
+                    >
+                      <Image source={option.icon} style={styles.verificationIcon} resizeMode="contain" />
+                      <Text style={[styles.verificationText, selected && styles.verificationTextActive]}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
           <TextInput
             value={form.password}
             onChangeText={(value) => updateField('password', value)}
@@ -162,6 +291,17 @@ const RegisterScreen = ({ navigation, route }) => {
             style={[styles.input, compactLayout && styles.compactInput]}
             placeholderTextColor="#8A8A8A"
           />
+          {isVendorSignup && otpRequested && (
+            <TextInput
+              value={otp}
+              onChangeText={setOtp}
+              placeholder="Enter OTP"
+              keyboardType="number-pad"
+              maxLength={6}
+              style={[styles.input, compactLayout && styles.compactInput]}
+              placeholderTextColor="#8A8A8A"
+            />
+          )}
 
           {!!message && <Text style={styles.message}>{message}</Text>}
 
@@ -172,15 +312,30 @@ const RegisterScreen = ({ navigation, route }) => {
               pressed && styles.pressed,
               isSubmitting && styles.disabled,
             ]}
-            onPress={handleRegister}
+            onPress={primaryAction}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryButtonText}>Send Request</Text>
+              <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
             )}
           </Pressable>
+
+          {isVendorSignup && otpRequested && (
+            <Pressable
+              disabled={isSubmitting}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                compactLayout && styles.compactSecondaryButton,
+                pressed && styles.pressed,
+                isSubmitting && styles.disabled,
+              ]}
+              onPress={handleResendOtp}
+            >
+              <Text style={styles.secondaryButtonText}>Resend OTP</Text>
+            </Pressable>
+          )}
 
           <Pressable
             style={({ pressed }) => [styles.linkButton, compactLayout && styles.compactLinkButton, pressed && styles.pressed]}
@@ -316,6 +471,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 9,
   },
+  verificationSection: {
+    marginBottom: 12,
+  },
+  verificationLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  verificationRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  verificationButton: {
+    alignItems: 'center',
+    backgroundColor: colors.cream,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: 10,
+  },
+  verificationButtonActive: {
+    backgroundColor: colors.greenSoft,
+    borderColor: colors.red,
+  },
+  verificationIcon: {
+    height: 22,
+    width: 22,
+  },
+  verificationText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  verificationTextActive: {
+    color: colors.ink,
+  },
   message: {
     color: colors.redDark,
     fontSize: 14,
@@ -341,6 +539,26 @@ const styles = StyleSheet.create({
     color: colors.onBrand,
     fontSize: 16,
     fontWeight: '800',
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: colors.black,
+    borderRadius: 8,
+    justifyContent: 'center',
+    marginTop: 10,
+    minHeight: 44,
+    width: '100%',
+    ...shadows.soft,
+  },
+  compactSecondaryButton: {
+    minHeight: 40,
+    marginTop: 8,
+  },
+  secondaryButtonText: {
+    color: colors.onBrand,
+    fontSize: 14,
+    fontWeight: '900',
   },
   linkButton: {
     alignItems: 'center',
