@@ -39,6 +39,7 @@ const statusColors = {
   'In Production': colors.amber,
   'Out for Delivery': colors.blue,
   Delivered: colors.green,
+  Rejected: colors.red,
   Assigned: colors.amber,
   'Picked Up': colors.blue,
   Completed: colors.green,
@@ -88,7 +89,7 @@ export const EntranceView = ({ children, delay = 0, style }) => {
   );
 };
 
-export const AppScreen = ({ children }) => {
+export const AppScreen = ({ children, scrollRef }) => {
   const navigation = useNavigation();
   const route = useRoute();
   const { logout } = useAuth();
@@ -140,6 +141,7 @@ export const AppScreen = ({ children }) => {
         <View pointerEvents="none" style={styles.screenOverlay} />
         <View pointerEvents="none" style={styles.screenBand} />
         <ScrollView
+          ref={scrollRef}
           style={[styles.scroll, screenWebScrollStyle]}
           contentContainerStyle={styles.screenContent}
           showsVerticalScrollIndicator={false}

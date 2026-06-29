@@ -263,7 +263,7 @@ const loadGoogleMaps = (apiKey) => {
   return window.__samosaGoogleMapsPromise;
 };
 
-const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, refreshing = false, refreshKey = 0 }) => {
+const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, refreshing = false, refreshKey = 0, embedded = false }) => {
   const mapRef = useRef(null);
   const hasLoadedMapRef = useRef(false);
   const [routeError, setRouteError] = useState('');
@@ -622,7 +622,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
   }
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, embedded && styles.wrapEmbedded]}>
       <View style={styles.mapArea}>
         {React.createElement('div', {
           ref: mapRef,
@@ -707,6 +707,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 14,
     overflow: 'hidden',
+  },
+  wrapEmbedded: {
+    borderWidth: 0,
+    marginBottom: 0,
   },
   mapArea: {
     backgroundColor: '#EEF2F1',

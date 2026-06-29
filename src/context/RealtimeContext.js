@@ -10,7 +10,7 @@ const RealtimeContext = createContext({
 });
 
 export const RealtimeProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const socketRef = useRef(null);
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -34,6 +34,27 @@ export const RealtimeProvider = ({ children }) => {
 
     const handleConnect = () => setIsConnected(true);
     const handleDisconnect = () => setIsConnected(false);
+    const handleConnectError = (error) => {
+      setIsConnected(false);
+
+      if (/account|authentication token is invalid|not active/i.test(error?.message || '')) {
+        logout();
+      }
+    };
+    const handleAccountDeleted = () => {
+      logout();
+    };
+    const handleResourceChanged = (payload = {}) => {
+      const userId = user?._id || user?.id;
+
+      if (
+        payload.action === 'deleted' &&
+        payload.entity === 'user' &&
+        payload.entityId === userId
+      ) {
+        logout();
+      }
+    };
     const handleAppStateChange = (nextState) => {
       if (nextState === 'active' && !nextSocket.connected) {
         nextSocket.connect();
@@ -42,7 +63,9 @@ export const RealtimeProvider = ({ children }) => {
 
     nextSocket.on('connect', handleConnect);
     nextSocket.on('disconnect', handleDisconnect);
-    nextSocket.on('connect_error', handleDisconnect);
+    nextSocket.on('connect_error', handleConnectError);
+    nextSocket.on('account:deleted', handleAccountDeleted);
+    nextSocket.on('resource:changed', handleResourceChanged);
 
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
@@ -50,14 +73,16 @@ export const RealtimeProvider = ({ children }) => {
       appStateSubscription.remove();
       nextSocket.off('connect', handleConnect);
       nextSocket.off('disconnect', handleDisconnect);
-      nextSocket.off('connect_error', handleDisconnect);
+      nextSocket.off('connect_error', handleConnectError);
+      nextSocket.off('account:deleted', handleAccountDeleted);
+      nextSocket.off('resource:changed', handleResourceChanged);
       nextSocket.disconnect();
 
       if (socketRef.current === nextSocket) {
         socketRef.current = null;
       }
     };
-  }, [user?.token]);
+  }, [logout, user?._id, user?.id, user?.token]);
 
   const emit = useCallback((eventName, payload, callback) => {
     const activeSocket = socketRef.current;

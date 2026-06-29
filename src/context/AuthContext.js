@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }) => {
         role,
         verificationMethod,
       });
-      return { success: true, message: data.message || 'Signup request sent to admin.' };
+      return { success: true, message: data.message || 'Signup request sent to admin for verification. You can login after admin approval.' };
     } catch (error) {
       return {
         success: false,
@@ -159,7 +159,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await AsyncStorage.removeItem('userInfo');
       setUser(null);
@@ -167,7 +167,30 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const status = error.response?.status;
+        const message = getApiErrorMessage(error, '');
+        const shouldLogout =
+          status === 401 ||
+          (status === 403 && /account|suspended|not active/i.test(message));
+
+        if (user?.token && shouldLogout) {
+          await logout();
+        }
+
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, [logout, user?.token]);
 
   const updateUser = async (nextFields) => {
     if (!user) {

@@ -24,10 +24,11 @@ const summarizeOrder = (order) =>
   `${order.order_type === 'Bulk' ? 'Bulk - ' : ''}${summarizeItems(order)}`;
 
 const OrderVerificationScreen = () => {
-  const orders = useApiResource('/orders?status=Pending,Ready', []);
+  const orders = useApiResource('/orders?status=Pending,Ready,Out%20for%20Delivery', []);
   const deliveryBoys = useApiResource('/sales/delivery-boys', []);
   const pendingOrders = (orders.data || []).filter((order) => order.status === 'Pending');
   const readyOrders = (orders.data || []).filter((order) => order.status === 'Ready');
+  const dispatchOrders = (orders.data || []).filter((order) => order.status === 'Out for Delivery');
   const [selectedDeliveryByOrder, setSelectedDeliveryByOrder] = useState({});
   const [busyId, setBusyId] = useState('');
   const [invoiceBusyId, setInvoiceBusyId] = useState('');
@@ -180,7 +181,7 @@ const OrderVerificationScreen = () => {
             {!!order.bulk_note && <Text style={styles.vendorMessage}>vendor message :- {order.bulk_note}</Text>}
             {renderInvoiceButton(order)}
             <View style={styles.deliveryRow}>
-              {(deliveryBoys.data || []).map((boy) => {
+              {(deliveryBoys.data || []).length ? (deliveryBoys.data || []).map((boy) => {
                 const isSelected = selectedDeliveryByOrder[order._id] === boy._id;
 
                 return (
@@ -200,7 +201,9 @@ const OrderVerificationScreen = () => {
                     </Text>
                   </Pressable>
                 );
-              })}
+              }) : (
+                <Text style={styles.deliveryEmpty}>No free delivery boy available right now.</Text>
+              )}
             </View>
             <PrimaryButton
               label="Assign Delivery Boy"
@@ -214,6 +217,21 @@ const OrderVerificationScreen = () => {
           </View>
         ))}
       </DataState>
+
+      <SectionTitle title="Delivery Status" action="Live dispatch" />
+      <DataState isLoading={orders.isLoading} error={orders.error} empty={!dispatchOrders.length}>
+        {dispatchOrders.map((order) => (
+          <View key={order._id} style={styles.orderBlock}>
+            <InfoCard
+              title={`${order._id?.slice(-6).toUpperCase()} - ${order.customer_name}`}
+              subtitle={`${order.delivery_boy?.name || 'Delivery boy'} - ${order.delivery?.status === 'Picked Up' ? 'Accepted delivery' : order.delivery?.status || 'Waiting for response'}`}
+              right={formatMoney(order.final_amount)}
+              status={order.delivery?.status || order.status}
+              image={getOrderImage(order)}
+            />
+          </View>
+        ))}
+      </DataState>
     </AppScreen>
   );
 };
@@ -223,8 +241,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   deliveryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: 8,
     marginBottom: 10,
     marginTop: 4,
@@ -265,6 +282,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    width: '100%',
   },
   deliveryChipActive: {
     backgroundColor: colors.red,
@@ -277,6 +295,12 @@ const styles = StyleSheet.create({
   },
   deliveryTextActive: {
     color: colors.onBrand,
+  },
+  deliveryEmpty: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '800',
+    paddingVertical: 8,
   },
   message: {
     color: colors.redDark,

@@ -18,7 +18,7 @@ const DeliveryDashboardScreen = () => {
   const [promptRun, setPromptRun] = useState(null);
   const [dismissedPromptIds, setDismissedPromptIds] = useState({});
   const [message, setMessage] = useState('');
-  const [busyId, setBusyId] = useState('');
+  const [busyAction, setBusyAction] = useState('');
   const [isAvailabilitySaving, setIsAvailabilitySaving] = useState(false);
 
   useEffect(() => {
@@ -63,10 +63,10 @@ const DeliveryDashboardScreen = () => {
   };
 
   const acceptRun = async (run) => {
-    if (!run || busyId) return;
+    if (!run || busyAction) return;
 
     try {
-      setBusyId(run._id);
+      setBusyAction(`accept-${run._id}`);
       setMessage('');
       await axios.put(`${API_URL}/delivery/${run._id}/accept`);
       setDismissedPromptIds((current) => ({ ...current, [run._id]: true }));
@@ -76,7 +76,27 @@ const DeliveryDashboardScreen = () => {
     } catch (error) {
       setMessage(error.response?.data?.message || 'Unable to accept delivery');
     } finally {
-      setBusyId('');
+      setBusyAction('');
+    }
+  };
+
+  const rejectRun = async (run) => {
+    if (!run || busyAction) return;
+
+    try {
+      setBusyAction(`reject-${run._id}`);
+      setMessage('');
+      await axios.put(`${API_URL}/delivery/${run._id}/reject`, {
+        notes: 'Rejected by delivery boy.',
+      });
+      setDismissedPromptIds((current) => ({ ...current, [run._id]: true }));
+      setPromptRun(null);
+      await deliveries.refetch();
+      setMessage('Delivery rejected. Sales can assign another delivery boy.');
+    } catch (error) {
+      setMessage(error.response?.data?.message || 'Unable to reject delivery');
+    } finally {
+      setBusyAction('');
     }
   };
 
@@ -130,14 +150,36 @@ const DeliveryDashboardScreen = () => {
       <SectionTitle title="Runs" />
       <DataState isLoading={deliveries.isLoading} error={deliveries.error} empty={!deliveries.data?.length}>
         {(deliveries.data || []).map((run) => (
-          <InfoCard
-            key={run._id}
-            title={`${run._id?.slice(-6).toUpperCase()} - ${run.order?.customer_name || 'Delivery'}`}
-            subtitle={getDeliveryStopSubtitle(run.order, run.notes || 'No address note')}
-            right={formatMoney(run.order?.final_amount)}
-            status={run.status}
-            icon="truck-delivery-outline"
-          />
+          <View key={run._id} style={styles.runBlock}>
+            <InfoCard
+              title={`${run._id?.slice(-6).toUpperCase()} - ${run.order?.customer_name || 'Delivery'}`}
+              subtitle={getDeliveryStopSubtitle(run.order, run.notes || 'No address note')}
+              right={formatMoney(run.order?.final_amount)}
+              status={run.status}
+              icon="truck-delivery-outline"
+            />
+            {run.status === 'Assigned' && (
+              <View style={styles.runActions}>
+                <PrimaryButton
+                  label="Accept"
+                  icon="package-check"
+                  onPress={() => acceptRun(run)}
+                  loading={busyAction === `accept-${run._id}`}
+                  loadingLabel="Accepting..."
+                  disabled={Boolean(busyAction)}
+                />
+                <PrimaryButton
+                  label="Reject"
+                  icon="close-circle-outline"
+                  tone={colors.black}
+                  onPress={() => rejectRun(run)}
+                  loading={busyAction === `reject-${run._id}`}
+                  loadingLabel="Rejecting..."
+                  disabled={Boolean(busyAction)}
+                />
+              </View>
+            )}
+          </View>
         ))}
       </DataState>
 
@@ -154,8 +196,18 @@ const DeliveryDashboardScreen = () => {
               label="Receive Order"
               icon="package-check"
               onPress={() => acceptRun(promptRun)}
-              loading={busyId === promptRun?._id}
+              loading={busyAction === `accept-${promptRun?._id}`}
               loadingLabel="Accepting..."
+              disabled={Boolean(busyAction)}
+            />
+            <PrimaryButton
+              label="Reject Order"
+              icon="close-circle-outline"
+              tone={colors.black}
+              onPress={() => rejectRun(promptRun)}
+              loading={busyAction === `reject-${promptRun?._id}`}
+              loadingLabel="Rejecting..."
+              disabled={Boolean(busyAction)}
             />
             <Pressable style={styles.modalCancel} onPress={closePrompt}>
               <Text style={styles.modalCancelText}>Later</Text>
@@ -168,6 +220,13 @@ const DeliveryDashboardScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  runBlock: {
+    marginBottom: 10,
+  },
+  runActions: {
+    gap: 8,
+    marginBottom: 8,
+  },
   availabilityPanel: {
     alignItems: 'center',
     backgroundColor: colors.white,

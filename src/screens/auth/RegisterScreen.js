@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { EntranceView } from '../../components/SamosaUI';
 import { colors, imageSource, images, shadows } from '../../theme/brand';
+import { createSignupSocket } from '../../utils/socket';
 
 const selfSignupRoles = ['vendor', 'sales', 'production', 'delivery'];
 const verificationOptions = [
@@ -59,9 +60,46 @@ const RegisterScreen = ({ navigation, route }) => {
   const [otpRequested, setOtpRequested] = useState(false);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingSignup, setPendingSignup] = useState(null);
+
+  useEffect(() => {
+    if (!pendingSignup?.email || !pendingSignup?.role) {
+      return undefined;
+    }
+
+    const socket = createSignupSocket();
+    const watchSignup = () => {
+      socket.emit('signup:watch', pendingSignup);
+    };
+    const handleSignupStatus = (payload = {}) => {
+      if (payload.email !== pendingSignup.email || payload.role !== pendingSignup.role || !payload.message) {
+        return;
+      }
+
+      setMessage(payload.message);
+
+      if (payload.status === 'active' || payload.status === 'rejected') {
+        setPendingSignup(null);
+      }
+    };
+
+    socket.on('connect', watchSignup);
+    socket.on('signup:status', handleSignupStatus);
+
+    if (socket.connected) {
+      watchSignup();
+    }
+
+    return () => {
+      socket.off('connect', watchSignup);
+      socket.off('signup:status', handleSignupStatus);
+      socket.disconnect();
+    };
+  }, [pendingSignup]);
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+    setPendingSignup(null);
 
     if (isVendorSignup && ['name', 'email', 'phone', 'password'].includes(field)) {
       setOtp('');
@@ -120,8 +158,8 @@ const RegisterScreen = ({ navigation, route }) => {
         return;
       }
 
-      setForm({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
-      setMessage(result.message || 'Signup request sent to admin for verification.');
+      setPendingSignup({ email: form.email.trim().toLowerCase(), role });
+      setMessage(result.message || 'Signup request sent to admin for verification. You can login after admin approval.');
       return;
     }
 

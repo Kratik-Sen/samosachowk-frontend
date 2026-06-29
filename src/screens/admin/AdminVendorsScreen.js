@@ -191,8 +191,8 @@ const AdminVendorsScreen = () => {
     }
   };
 
-  const deleteCredential = async (userId) => {
-    const actionKey = `delete-${userId}`;
+  const deleteCredential = async (userId, options = {}) => {
+    const actionKey = `${options.action || 'delete'}-${userId}`;
 
     if (busyAction) {
       return;
@@ -216,12 +216,19 @@ const AdminVendorsScreen = () => {
         setNewPassword('');
       }
       await Promise.all([users.refetch(), outlets.refetch()]);
-      setMessage('Credential and related vendor data deleted.');
+      setMessage(options.successMessage || 'Credential and related vendor data deleted.');
     } catch (error) {
       setMessage(error.response?.data?.message || 'Unable to delete credential');
     } finally {
       setBusyAction('');
     }
+  };
+
+  const rejectTeamRequest = async (member) => {
+    await deleteCredential(member._id, {
+      action: 'reject',
+      successMessage: `${member.name} request rejected. The email can be used for signup again.`,
+    });
   };
 
   const resetMemberPassword = async (member) => {
@@ -362,6 +369,7 @@ const AdminVendorsScreen = () => {
     const outlet = getOutletForMember(member._id);
     const isVerifying = busyAction === `verify-${member._id}`;
     const isDeleting = busyAction === `delete-${member._id}`;
+    const isRejecting = busyAction === `reject-${member._id}`;
     const isPasswordSaving = busyAction === `password-${member._id}`;
     const isActionLocked = Boolean(busyAction) || isSaving;
     const outletStoreName = displayStoreName(outlet?.store_name, member.name || outlet?.owner_name);
@@ -424,17 +432,30 @@ const AdminVendorsScreen = () => {
             </>
           )}
           {member.role !== 'vendor' && member.status === 'pending' && (
-            <Pressable
-              disabled={isActionLocked}
-              style={[styles.verifyButton, isActionLocked && styles.buttonDisabled]}
-              onPress={() => verifyTeamRequest(member)}
-            >
-              {isVerifying ? (
-                <ActivityIndicator color={colors.onBrand} />
-              ) : (
-                <Text style={styles.verifyText}>Verify</Text>
-              )}
-            </Pressable>
+            <>
+              <Pressable
+                disabled={isActionLocked}
+                style={[styles.verifyButton, isActionLocked && styles.buttonDisabled]}
+                onPress={() => verifyTeamRequest(member)}
+              >
+                {isVerifying ? (
+                  <ActivityIndicator color={colors.onBrand} />
+                ) : (
+                  <Text style={styles.verifyText}>Verify</Text>
+                )}
+              </Pressable>
+              <Pressable
+                disabled={isActionLocked}
+                style={[styles.rejectButton, isActionLocked && styles.buttonDisabled]}
+                onPress={() => rejectTeamRequest(member)}
+              >
+                {isRejecting ? (
+                  <ActivityIndicator color={colors.onBrand} />
+                ) : (
+                  <Text style={styles.rejectText}>Reject</Text>
+                )}
+              </Pressable>
+            </>
           )}
           <Pressable
             disabled={isActionLocked}
@@ -982,6 +1003,17 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   verifyText: {
+    color: colors.onBrand,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  rejectButton: {
+    backgroundColor: colors.black,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  rejectText: {
     color: colors.onBrand,
     fontSize: 12,
     fontWeight: '900',

@@ -27,3 +27,16 @@ export const createTrackingSocket = (token) => {
     rememberUpgrade: true,
   });
 };
+
+export const createSignupSocket = () =>
+  io(SOCKET_URL, {
+    path: SOCKET_PATH,
+    autoConnect: true,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+    transports: ['websocket', 'polling'],
+    rememberUpgrade: true,
+  });

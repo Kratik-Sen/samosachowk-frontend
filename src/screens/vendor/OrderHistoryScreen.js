@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Platform, StyleSheet, Text, View } from 'react-native';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
@@ -31,124 +31,49 @@ const NativeMarkerIcon = ({ source }) => (
   </View>
 );
 
-const OrderHistoryScreen = () => {
-  const { socket } = useRealtime();
-  const orders = useApiResource('/vendors/orders?scope=active', []);
-  const [liveLocations, setLiveLocations] = useState({});
+const getOrderLabel = (order) => `Order ${order._id?.slice(-6).toUpperCase() || ''}`.trim();
+
+const getOrderEtaText = (order) => {
+  if (order.status !== 'Out for Delivery' || !order.delivery_boy) {
+    return 'ETA after delivery assignment';
+  }
+
+  const routeInfo = estimateRouteInfo(order.delivery?.current_location, order.delivery_address);
+
+  if (!routeInfo) {
+    return 'ETA waiting for delivery location';
+  }
+
+  return `ETA ${routeInfo.durationText}${routeInfo.isEstimate ? ' est.' : ''}${routeInfo.distanceText ? ` (${routeInfo.distanceText})` : ''}`;
+};
+
+const LiveDeliveryTracking = ({ order, liveLocation, orders, onLayout, isSelected }) => {
   const [message, setMessage] = useState('');
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
   const [isRefreshingMap, setIsRefreshingMap] = useState(false);
   const [mapRefreshKey, setMapRefreshKey] = useState(0);
-  const activeOrders = orders.data || [];
-  const trackedOrder = useMemo(
-    () => (orders.data || []).find((order) => order.status === 'Out for Delivery' && order.delivery_boy),
-    [orders.data]
-  );
-  const liveLocation =
-    liveLocations[trackedOrder?._id] ||
-    trackedOrder?.delivery?.current_location;
-  const deliveryCoordinate = toCoordinate(liveLocation);
-  const vendorLocation = trackedOrder?.delivery_address || null;
+  const vendorLocation = order?.delivery_address || null;
   const vendorCoordinate = toCoordinate(vendorLocation);
+  const deliveryCoordinate = toCoordinate(liveLocation || order?.delivery?.current_location);
   const nativeRoadRoute = useGoogleRoadRoute(
     deliveryCoordinate,
     vendorCoordinate,
     Platform.OS !== 'web' && Boolean(deliveryCoordinate && vendorCoordinate),
     mapRefreshKey
   );
-  const routeInfo = nativeRoadRoute.route?.routeInfo || estimateRouteInfo(liveLocation, vendorLocation);
-  const canRenderMap = trackedOrder && (Platform.OS === 'web' ? vendorLocation : vendorCoordinate);
-
-  useEffect(() => {
-    if (!socket) {
-      return undefined;
-    }
-
-    const trackedDeliveryId = trackedOrder?.delivery?._id;
-    const trackedOrderId = trackedOrder?._id;
-
-    const applyTrackingPayload = (payload) => {
-      if (!payload || payload.orderId !== trackedOrderId) {
-        return;
-      }
-
-      if (payload.current_location) {
-        setLiveLocations((current) => ({
-          ...current,
-          [payload.orderId]: payload.current_location,
-        }));
-      }
-
-      orders.setData((current) =>
-        (current || []).map((order) =>
-          order._id === payload.orderId
-            ? {
-                ...order,
-                ...(payload.vendor_location
-                  ? { delivery_address: { ...(order.delivery_address || {}), ...payload.vendor_location } }
-                  : {}),
-                ...(payload.current_location
-                  ? {
-                      delivery: {
-                        ...(order.delivery || {}),
-                        current_location: payload.current_location,
-                      },
-                    }
-                  : {}),
-              }
-            : order
-        )
-      );
-    };
-
-    const joinTrackingRoom = () => {
-      if (trackedDeliveryId) {
-        socket.emit('tracking:join', { deliveryId: trackedDeliveryId });
-      }
-    };
-
-    const handleDeliveryAssigned = () => {
-      orders.refetch();
-    };
-    const handleDeliveryStatus = () => {
-      orders.refetch();
-    };
-
-    socket.on('connect', joinTrackingRoom);
-    socket.on('delivery:assigned', handleDeliveryAssigned);
-    socket.on('delivery:status', handleDeliveryStatus);
-    socket.on('tracking:snapshot', applyTrackingPayload);
-    socket.on('delivery:location', applyTrackingPayload);
-    socket.on('vendor:location', applyTrackingPayload);
-
-    if (socket.connected) {
-      joinTrackingRoom();
-    }
-
-    return () => {
-      socket.off('connect', joinTrackingRoom);
-      socket.off('delivery:assigned', handleDeliveryAssigned);
-      socket.off('delivery:status', handleDeliveryStatus);
-      socket.off('tracking:snapshot', applyTrackingPayload);
-      socket.off('delivery:location', applyTrackingPayload);
-      socket.off('vendor:location', applyTrackingPayload);
-
-      if (trackedDeliveryId) {
-        socket.emit('tracking:leave', { deliveryId: trackedDeliveryId });
-      }
-    };
-  }, [socket, trackedOrder?._id, trackedOrder?.delivery?._id, orders.refetch]);
+  const routeInfo = nativeRoadRoute.route?.routeInfo || estimateRouteInfo(liveLocation || order?.delivery?.current_location, vendorLocation);
+  const canRenderMap = order && (Platform.OS === 'web' ? vendorLocation : vendorCoordinate);
 
   const saveCurrentVendorLocation = async () => {
-    if (!trackedOrder?._id) {
+    if (!order?._id) {
       throw new Error('No active delivery order to update.');
     }
 
     const nextLocation = await getCurrentVendorLocation();
-    await axios.put(`${API_URL}/vendors/orders/${trackedOrder._id}/location`, nextLocation);
+    await axios.put(`${API_URL}/vendors/orders/${order._id}/location`, nextLocation);
     orders.setData((current) =>
-      (current || []).map((order) =>
-        order._id === trackedOrder._id ? { ...order, delivery_address: nextLocation } : order
+      (current || []).map((currentOrder) =>
+        currentOrder._id === order._id ? { ...currentOrder, delivery_address: nextLocation } : currentOrder
       )
     );
     return nextLocation;
@@ -192,10 +117,6 @@ const OrderHistoryScreen = () => {
   };
 
   const renderRouteInfo = () => {
-    if (!trackedOrder) {
-      return null;
-    }
-
     const isLoadingNativeRoute = nativeRoadRoute.isLoading && Platform.OS !== 'web' && !nativeRoadRoute.route;
 
     return (
@@ -225,26 +146,20 @@ const OrderHistoryScreen = () => {
     if (!canRenderMap) {
       return (
         <View style={styles.trackingBox}>
-          <Text style={styles.trackingTitle}>
-            {trackedOrder ? 'Waiting for live delivery location' : 'No active delivery assigned'}
-          </Text>
+          <Text style={styles.trackingTitle}>Waiting for live delivery location</Text>
           <Text style={styles.trackingText}>
-            {trackedOrder
-              ? vendorLocation?.location || 'Use current location to set the vendor destination.'
-              : 'Once sales assigns a delivery boy, live tracking will appear here.'}
+            {vendorLocation?.location || 'Use current location to set the vendor destination.'}
           </Text>
           {renderRouteInfo()}
-          {trackedOrder && (
-            <PrimaryButton
-              label="Refresh Map"
-              icon="refresh"
-              tone={colors.black}
-              disabled={isRefreshingMap || isUpdatingLocation}
-              loading={isRefreshingMap}
-              loadingLabel="Refreshing..."
-              onPress={refreshTrackingMap}
-            />
-          )}
+          <PrimaryButton
+            label="Refresh Map"
+            icon="refresh"
+            tone={colors.black}
+            disabled={isRefreshingMap || isUpdatingLocation}
+            loading={isRefreshingMap}
+            loadingLabel="Refreshing..."
+            onPress={refreshTrackingMap}
+          />
         </View>
       );
     }
@@ -254,10 +169,11 @@ const OrderHistoryScreen = () => {
         <GoogleRouteMap
           vendorLocation={vendorLocation}
           deliveryLocation={deliveryCoordinate}
-          status={trackedOrder.status}
+          status={order.status}
           onRefresh={refreshTrackingMap}
           refreshing={isRefreshingMap}
           refreshKey={mapRefreshKey}
+          embedded
         />
       );
     }
@@ -327,7 +243,7 @@ const OrderHistoryScreen = () => {
               <>
                 <Marker
                   coordinate={deliveryCoordinate}
-                  title={trackedOrder.delivery_boy?.name || 'Delivery boy'}
+                  title={order.delivery_boy?.name || 'Delivery boy'}
                   onPress={ignoreMapIntent}
                   tracksViewChanges={false}
                 >
@@ -355,7 +271,146 @@ const OrderHistoryScreen = () => {
   };
 
   return (
-    <AppScreen>
+    <View onLayout={onLayout} style={[styles.deliveryBlock, isSelected && styles.deliveryBlockSelected]}>
+      <View style={styles.deliveryHeader}>
+        <View>
+          <Text style={styles.deliveryTitle}>{getOrderLabel(order)}</Text>
+          <Text style={styles.deliveryMeta}>{order.delivery_boy?.name || 'Delivery boy assigned'}</Text>
+        </View>
+        <Text style={styles.deliveryAmount}>{formatMoney(order.final_amount)}</Text>
+      </View>
+      {!!message && <Text style={styles.message}>{message}</Text>}
+      <View style={styles.locationCard}>
+        <Text style={styles.locationText}>
+          {vendorLocation?.location || 'Vendor destination is not set for this order.'}
+        </Text>
+        <PrimaryButton
+          label="Use Current Location"
+          icon="crosshairs-gps"
+          tone={colors.black}
+          disabled={isUpdatingLocation || isRefreshingMap}
+          loading={isUpdatingLocation}
+          loadingLabel="Updating..."
+          onPress={updateVendorLocation}
+        />
+      </View>
+      {renderTrackingMap()}
+    </View>
+  );
+};
+
+const OrderHistoryScreen = () => {
+  const { socket } = useRealtime();
+  const scrollRef = useRef(null);
+  const orders = useApiResource('/vendors/orders?scope=active', []);
+  const [liveLocations, setLiveLocations] = useState({});
+  const [deliveryLayoutByOrder, setDeliveryLayoutByOrder] = useState({});
+  const [selectedTrackingOrderId, setSelectedTrackingOrderId] = useState('');
+  const activeOrders = orders.data || [];
+  const liveDeliveryOrders = useMemo(
+    () => activeOrders.filter((order) => order.status === 'Out for Delivery' && order.delivery_boy && order.delivery?._id),
+    [activeOrders]
+  );
+  const trackedDeliveryKey = useMemo(
+    () => liveDeliveryOrders.map((order) => order.delivery?._id).filter(Boolean).join('|'),
+    [liveDeliveryOrders]
+  );
+  const trackedOrderIdsKey = useMemo(
+    () => liveDeliveryOrders.map((order) => order._id).filter(Boolean).join('|'),
+    [liveDeliveryOrders]
+  );
+
+  useEffect(() => {
+    if (!socket) {
+      return undefined;
+    }
+
+    const trackedDeliveryIds = trackedDeliveryKey ? trackedDeliveryKey.split('|') : [];
+    const trackedOrderIds = new Set(trackedOrderIdsKey ? trackedOrderIdsKey.split('|') : []);
+
+    const applyTrackingPayload = (payload) => {
+      if (!payload?.orderId || !trackedOrderIds.has(payload.orderId)) {
+        return;
+      }
+
+      if (payload.current_location) {
+        setLiveLocations((current) => ({
+          ...current,
+          [payload.orderId]: payload.current_location,
+        }));
+      }
+
+      orders.setData((current) =>
+        (current || []).map((order) =>
+          order._id === payload.orderId
+            ? {
+                ...order,
+                ...(payload.vendor_location
+                  ? { delivery_address: { ...(order.delivery_address || {}), ...payload.vendor_location } }
+                  : {}),
+                ...(payload.current_location
+                  ? {
+                      delivery: {
+                        ...(order.delivery || {}),
+                        current_location: payload.current_location,
+                      },
+                    }
+                  : {}),
+              }
+            : order
+        )
+      );
+    };
+
+    const joinTrackingRoom = () => {
+      trackedDeliveryIds.forEach((deliveryId) => {
+        socket.emit('tracking:join', { deliveryId });
+      });
+    };
+
+    const handleDeliveryAssigned = () => {
+      orders.refetch();
+    };
+    const handleDeliveryStatus = () => {
+      orders.refetch();
+    };
+
+    socket.on('connect', joinTrackingRoom);
+    socket.on('delivery:assigned', handleDeliveryAssigned);
+    socket.on('delivery:status', handleDeliveryStatus);
+    socket.on('tracking:snapshot', applyTrackingPayload);
+    socket.on('delivery:location', applyTrackingPayload);
+    socket.on('vendor:location', applyTrackingPayload);
+
+    if (socket.connected) {
+      joinTrackingRoom();
+    }
+
+    return () => {
+      socket.off('connect', joinTrackingRoom);
+      socket.off('delivery:assigned', handleDeliveryAssigned);
+      socket.off('delivery:status', handleDeliveryStatus);
+      socket.off('tracking:snapshot', applyTrackingPayload);
+      socket.off('delivery:location', applyTrackingPayload);
+      socket.off('vendor:location', applyTrackingPayload);
+
+      trackedDeliveryIds.forEach((deliveryId) => {
+        socket.emit('tracking:leave', { deliveryId });
+      });
+    };
+  }, [socket, trackedDeliveryKey, trackedOrderIdsKey, orders.refetch]);
+
+  const scrollToDelivery = (orderId) => {
+    const layoutY = deliveryLayoutByOrder[orderId];
+
+    if (typeof layoutY === 'number') {
+      setSelectedTrackingOrderId(orderId);
+      scrollRef.current?.scrollTo?.({ y: Math.max(layoutY - 18, 0), animated: true });
+    }
+  };
+
+  return (
+    <AppScreen scrollRef={scrollRef}>
       <BrandHero
         eyebrow="Order book"
         title="Every batch, tracked"
@@ -377,33 +432,33 @@ const OrderHistoryScreen = () => {
           <InfoCard
             key={order._id}
             title={order._id?.slice(-6).toUpperCase()}
-            subtitle={`${order.order_type === 'Bulk' ? 'Bulk - ' : ''}${order.customer_name} - ${(order.items || []).map((item) => `${item.name} x ${item.quantity}`).join(', ')}`}
+            subtitle={`${order.order_type === 'Bulk' ? 'Bulk - ' : ''}${order.customer_name} - ${(order.items || []).map((item) => `${item.name} x ${item.quantity}`).join(', ')} - ${getOrderEtaText(order)}`}
             right={formatMoney(order.final_amount)}
             status={order.status}
             icon="receipt"
+            onPress={order.status === 'Out for Delivery' && order.delivery_boy && order.delivery?._id ? () => scrollToDelivery(order._id) : undefined}
           />
         ))}
       </DataState>
 
-      <SectionTitle title="Live Delivery" action={trackedOrder?.delivery_boy?.name || 'Tracking'} />
-      {!!message && <Text style={styles.message}>{message}</Text>}
-      {trackedOrder && (
-        <View style={styles.locationCard}>
-          <Text style={styles.locationText}>
-            {vendorLocation?.location || 'Vendor destination is not set for this order.'}
-          </Text>
-          <PrimaryButton
-            label="Use Current Location"
-            icon="crosshairs-gps"
-            tone={colors.black}
-            disabled={isUpdatingLocation || isRefreshingMap}
-            loading={isUpdatingLocation}
-            loadingLabel="Updating..."
-            onPress={updateVendorLocation}
+      <SectionTitle title="Live Deliveries" action={liveDeliveryOrders.length ? `${liveDeliveryOrders.length} Tracking` : 'Tracking'} />
+      <DataState isLoading={orders.isLoading} error={orders.error} empty={!liveDeliveryOrders.length}>
+        {liveDeliveryOrders.map((order) => (
+          <LiveDeliveryTracking
+            key={order._id}
+            order={order}
+            liveLocation={liveLocations[order._id]}
+            orders={orders}
+            isSelected={selectedTrackingOrderId === order._id}
+            onLayout={(event) => {
+              const layoutY = event.nativeEvent.layout.y;
+              setDeliveryLayoutByOrder((current) => (
+                current[order._id] === layoutY ? current : { ...current, [order._id]: layoutY }
+              ));
+            }}
           />
-        </View>
-      )}
-      {renderTrackingMap()}
+        ))}
+      </DataState>
     </AppScreen>
   );
 };
@@ -435,6 +490,41 @@ const styles = StyleSheet.create({
   markerIcon: {
     height: 30,
     width: 30,
+  },
+  deliveryBlock: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 20,
+    overflow: 'hidden',
+    padding: 12,
+  },
+  deliveryBlockSelected: {
+    borderColor: colors.red,
+  },
+  deliveryHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  deliveryTitle: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  deliveryMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  deliveryAmount: {
+    color: colors.green,
+    fontSize: 14,
+    fontWeight: '900',
+    marginLeft: 12,
   },
   trackingBox: {
     backgroundColor: colors.white,
