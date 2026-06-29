@@ -2,9 +2,15 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const defaultApiUrl = 'https://samosachowk-backend.vercel.app/api';
+const requireEnv = (value, name) => {
+  if (!value) {
+    throw new Error(`${name} is required. Add it to your mobile .env file.`);
+  }
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || defaultApiUrl;
+  return value;
+};
+
+export const API_URL = requireEnv(process.env.EXPO_PUBLIC_API_URL, 'EXPO_PUBLIC_API_URL');
 
 const AuthContext = createContext();
 

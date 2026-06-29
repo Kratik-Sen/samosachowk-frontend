@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Asset } from 'expo-asset';
+import Constants from 'expo-constants';
 import { colors, images } from '../theme/brand';
 import { useApiResource } from '../hooks/useApiResource';
 import { estimateRouteInfo } from '../utils/routeMetrics';
@@ -98,7 +99,7 @@ const getCurrentOrigin = () => {
   return window.location.origin;
 };
 
-const GOOGLE_MAPS_DEMO_MAP_ID = 'DEMO_MAP_ID';
+const extra = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
 
 const getAssetUri = (asset) => {
   if (!asset) {
@@ -273,13 +274,11 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
   const [isRefreshingMap, setIsRefreshingMap] = useState(false);
   const config = useApiResource('/config/public', {
     googleMapsApiKey: '',
-    googleMapsMapId: GOOGLE_MAPS_DEMO_MAP_ID,
   }, {
     enabled: Platform.OS === 'web',
     live: false,
   });
-  const googleMapsApiKey = config.data?.googleMapsApiKey;
-  const googleMapsMapId = config.data?.googleMapsMapId || GOOGLE_MAPS_DEMO_MAP_ID;
+  const googleMapsApiKey = extra.googleMapsApiKey || config.data?.googleMapsApiKey;
   const originKey = useMemo(() => toLocationKey(deliveryLocation), [deliveryLocation]);
   const destinationKey = useMemo(() => toLocationKey(vendorLocation), [vendorLocation]);
   const origin = useMemo(() => toGoogleLocation(deliveryLocation), [originKey]);
@@ -352,7 +351,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
         polyline.setMap(null);
       });
       markers.forEach((marker) => {
-        marker.map = null;
+        marker.setMap(null);
       });
       routePolylines = [];
       markers = [];
@@ -368,15 +367,13 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
           setIsMapReady(false);
         }
         const maps = await loadGoogleMaps(googleMapsApiKey);
-        const [mapsLibrary, coreLibrary, markerLibrary, routesLibrary] = await Promise.all([
+        const [mapsLibrary, coreLibrary, routesLibrary] = await Promise.all([
           maps.importLibrary('maps'),
           maps.importLibrary('core'),
-          maps.importLibrary('marker'),
           maps.importLibrary('routes'),
         ]);
         const { Map, Polyline: MapsPolyline } = mapsLibrary;
         const { LatLngBounds } = coreLibrary;
-        const { AdvancedMarkerElement } = markerLibrary;
         const { Route } = routesLibrary;
         const Polyline = MapsPolyline || maps.Polyline;
         const shopIconUri = getAssetUri(images.shopIcon);
@@ -399,7 +396,6 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
           center,
           zoom: deliveryCoord ? 13 : 15,
           fullscreenControl: false,
-          mapId: googleMapsMapId,
           mapTypeControl: false,
           streetViewControl: false,
         });
@@ -440,6 +436,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
 
         const createMarker = ({ position, title, iconUri }) => {
           const markerContent = document.createElement('div');
+          markerContent.title = title;
           markerContent.style.alignItems = 'center';
           markerContent.style.background = colors.white;
           markerContent.style.border = `2px solid ${colors.border}`;
@@ -460,12 +457,37 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
           markerImage.style.width = '30px';
           markerContent.appendChild(markerImage);
 
-          const marker = new AdvancedMarkerElement({
-            content: markerContent,
-            map,
-            position,
-            title,
-          });
+          class ImageOverlayMarker extends maps.OverlayView {
+            constructor(markerPosition, markerElement) {
+              super();
+              this.position = markerPosition;
+              this.element = markerElement;
+            }
+
+            onAdd() {
+              this.element.style.position = 'absolute';
+              this.element.style.transform = 'translate(-50%, -50%)';
+              this.getPanes().overlayMouseTarget.appendChild(this.element);
+            }
+
+            draw() {
+              const point = this.getProjection().fromLatLngToDivPixel(this.position);
+
+              if (!point) {
+                return;
+              }
+
+              this.element.style.left = `${point.x}px`;
+              this.element.style.top = `${point.y}px`;
+            }
+
+            onRemove() {
+              this.element.remove();
+            }
+          }
+
+          const marker = new ImageOverlayMarker(new maps.LatLng(position.lat, position.lng), markerContent);
+          marker.setMap(map);
           markers.push(marker);
           return marker;
         };
@@ -574,7 +596,7 @@ const GoogleRouteMap = ({ vendorLocation, deliveryLocation, status, onRefresh, r
       isMounted = false;
       cleanupMap();
     };
-  }, [canShowMap, canRoute, googleMapsApiKey, googleMapsMapId, originKey, destinationKey, refreshKey, localRefreshKey]);
+  }, [canShowMap, canRoute, googleMapsApiKey, originKey, destinationKey, refreshKey, localRefreshKey]);
 
   if (Platform.OS !== 'web') {
     return null;
