@@ -13,6 +13,7 @@ const SalesDashboardScreen = () => {
   });
   const orders = useApiResource('/orders', []);
   const revenue = (orders.data || []).reduce((sum, order) => sum + Number(order.final_amount || 0), 0);
+  const activePipelineOrders = (orders.data || []).filter((order) => order.status !== 'Delivered');
 
   return (
     <AppScreen>
@@ -34,8 +35,8 @@ const SalesDashboardScreen = () => {
       />
 
       <SectionTitle title="Order Pipeline" />
-      <DataState isLoading={orders.isLoading || dashboard.isLoading} error={orders.error || dashboard.error} empty={!orders.data?.length}>
-        {(orders.data || []).slice(0, 8).map((order) => (
+      <DataState isLoading={orders.isLoading || dashboard.isLoading} error={orders.error || dashboard.error} empty={!activePipelineOrders.length}>
+        {activePipelineOrders.slice(0, 8).map((order) => (
           <InfoCard
             key={order._id}
             title={`${order._id?.slice(-6).toUpperCase()} - ${order.customer_name}`}

@@ -108,7 +108,7 @@ const VendorDashboardScreen = () => {
         image={getOrderImage(order)}
         onPress={canReorder ? () => reorderFromPastOrder(order) : undefined}
       />
-      <View style={styles.orderActions}>
+      <View style={[styles.orderActions, !canReorder && styles.orderActionsSingle]}>
         {canReorder && (
           <Pressable
             style={({ pressed }) => [styles.orderActionButton, pressed && styles.pressed]}
@@ -123,7 +123,7 @@ const VendorDashboardScreen = () => {
           style={({ pressed }) => [
             styles.orderActionButton,
             styles.invoiceButton,
-            !canReorder && styles.orderActionButtonWide,
+            !canReorder && styles.orderActionButtonSingle,
             pressed && styles.pressed,
             invoiceBusyId === order._id && styles.disabled,
           ]}
@@ -306,9 +306,14 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   orderActions: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     gap: 8,
     marginTop: 4,
+    width: '100%',
+  },
+  orderActionsSingle: {
+    flexDirection: 'column',
   },
   orderActionButton: {
     alignItems: 'center',
@@ -324,8 +329,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     ...shadows.soft,
   },
-  orderActionButtonWide: {
+  orderActionButtonSingle: {
+    alignSelf: 'stretch',
+    flex: 0,
     flexGrow: 0,
+    minWidth: '100%',
     width: '100%',
   },
   orderActionText: {

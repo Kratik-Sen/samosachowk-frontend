@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import axios from 'axios';
 import { AppScreen, BrandHero, DataState, InfoCard, MetricGrid, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
 import GoogleRouteMap from '../../components/GoogleRouteMap';
@@ -24,12 +24,6 @@ const toCoordinate = (location) => {
 };
 
 const ignoreMapIntent = () => {};
-
-const NativeMarkerIcon = ({ source }) => (
-  <View style={styles.markerBubble}>
-    <Image source={source} style={styles.markerIcon} resizeMode="contain" />
-  </View>
-);
 
 const getOrderLabel = (order) => `Order ${order._id?.slice(-6).toUpperCase() || ''}`.trim();
 
@@ -235,20 +229,16 @@ const LiveDeliveryTracking = ({ order, liveLocation, orders, onLayout, isSelecte
               title="Vendor outlet"
               description={vendorLocation?.location}
               onPress={ignoreMapIntent}
-              tracksViewChanges={false}
-            >
-              <NativeMarkerIcon source={images.shopIcon} />
-            </Marker>
+              image={images.shopIcon}
+            />
             {deliveryCoordinate && (
               <>
                 <Marker
                   coordinate={deliveryCoordinate}
                   title={order.delivery_boy?.name || 'Delivery boy'}
                   onPress={ignoreMapIntent}
-                  tracksViewChanges={false}
-                >
-                  <NativeMarkerIcon source={images.deliveryIcon} />
-                </Marker>
+                  image={images.deliveryIcon}
+                />
                 {roadRouteCoordinates.length > 1 && (
                   <Polyline coordinates={roadRouteCoordinates} strokeColor={colors.red} strokeWidth={4} />
                 )}
@@ -476,20 +466,6 @@ const styles = StyleSheet.create({
   map: {
     height: '100%',
     width: '100%',
-  },
-  markerBubble: {
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 2,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-  markerIcon: {
-    height: 30,
-    width: 30,
   },
   deliveryBlock: {
     backgroundColor: colors.white,

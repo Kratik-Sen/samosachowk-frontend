@@ -35,6 +35,12 @@ module.exports = {
       ...expo.android,
       ...(Object.keys(androidConfig).length ? { config: androidConfig } : {}),
     },
+    plugins: [
+      ...(expo.plugins || []),
+      ...(expo.plugins || []).some((plugin) => plugin === 'expo-sharing' || plugin?.[0] === 'expo-sharing')
+        ? []
+        : ['expo-sharing'],
+    ],
     extra: {
       ...expo.extra,
       googleMapsApiKey,

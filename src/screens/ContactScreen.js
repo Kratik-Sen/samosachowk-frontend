@@ -3,9 +3,11 @@ import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-nati
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppScreen, BrandHero, InfoCard, SectionTitle } from '../components/SamosaUI';
 import { colors, images, shadows } from '../theme/brand';
+import { canRenderNativeMap, nativeMapSetupMessage } from '../utils/nativeMaps';
 
 const HEAD_OFFICE_MAP_URL = 'https://www.google.com/maps?q=22.9446041,72.5882271';
 const HEAD_OFFICE_EMBED_URL = 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3674.1526643527372!2d72.5882271!3d22.9446041!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x395e8f17eb153f01%3A0x8d8cd296f79c0a00!2sSAMOSA%20CHOWK!5e0!3m2!1sen!2sin!4v1781690739347!5m2!1sen!2sin';
+const HEAD_OFFICE_COORDINATE = { latitude: 22.9446041, longitude: 72.5882271 };
 
 const ContactScreen = () => {
   const openHeadOfficeMap = () => {
@@ -44,10 +46,38 @@ const ContactScreen = () => {
               width: '100%',
             },
           })
+        ) : canRenderNativeMap ? (
+          (() => {
+            const maps = require('react-native-maps');
+            const MapView = maps.default;
+            const Marker = maps.Marker;
+            const ProviderGoogle = maps.PROVIDER_GOOGLE;
+
+            return (
+              <MapView
+                style={styles.nativeMap}
+                provider={Platform.OS === 'android' ? ProviderGoogle : undefined}
+                initialRegion={{
+                  ...HEAD_OFFICE_COORDINATE,
+                  latitudeDelta: 0.012,
+                  longitudeDelta: 0.012,
+                }}
+                mapType="standard"
+                userInterfaceStyle="light"
+                toolbarEnabled={false}
+              >
+                <Marker
+                  coordinate={HEAD_OFFICE_COORDINATE}
+                  title="Samosa Chowk Head Office"
+                  description="Tap Open Head Office Map for directions."
+                />
+              </MapView>
+            );
+          })()
         ) : (
           <View style={styles.mapFallback}>
             <MaterialCommunityIcons name="map-marker-radius" size={34} color={colors.red} />
-            <Text style={styles.mapFallbackText}>Google Maps location is ready to open.</Text>
+            <Text style={styles.mapFallbackText}>{nativeMapSetupMessage}</Text>
           </View>
         )}
       </View>
@@ -70,6 +100,10 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     overflow: 'hidden',
     ...shadows.card,
+  },
+  nativeMap: {
+    height: '100%',
+    width: '100%',
   },
   mapFallback: {
     alignItems: 'center',

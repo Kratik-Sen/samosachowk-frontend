@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -93,7 +94,7 @@ export const AppScreen = ({ children, scrollRef }) => {
   const navigation = useNavigation();
   const route = useRoute();
   const { logout } = useAuth();
-  const { isDark } = useThemeMode();
+  const { isDark, palette } = useThemeMode();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const isAppScreenMountedRef = useRef(true);
 
@@ -131,15 +132,15 @@ export const AppScreen = ({ children, scrollRef }) => {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: palette.appBg }]} edges={['top', 'left', 'right']}>
       <ImageBackground
         source={imageSource(isDark ? images.darkModeBackground : images.lightModeBackground)}
         style={styles.screenPattern}
         imageStyle={styles.screenPatternImage}
         resizeMode="cover"
       >
-        <View pointerEvents="none" style={styles.screenOverlay} />
-        <View pointerEvents="none" style={styles.screenBand} />
+        <View pointerEvents="none" style={[styles.screenOverlay, { backgroundColor: palette.patternOverlay }]} />
+        <View pointerEvents="none" style={[styles.screenBand, { backgroundColor: palette.screenBand }]} />
         <ScrollView
           ref={scrollRef}
           style={[styles.scroll, screenWebScrollStyle]}
@@ -147,9 +148,16 @@ export const AppScreen = ({ children, scrollRef }) => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.panelActions}>
-            <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.pressed]} onPress={goBack}>
-              <MaterialCommunityIcons name="arrow-left" size={20} color={colors.ink} />
-              <Text style={styles.backText}>Back</Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.backButton,
+                { backgroundColor: palette.white, borderColor: palette.border },
+                pressed && styles.pressed,
+              ]}
+              onPress={goBack}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={20} color={palette.ink} />
+              <Text style={[styles.backText, { color: palette.ink }]}>Back</Text>
             </Pressable>
             <View style={styles.panelActionRight}>
               <ThemeToggle />
@@ -180,26 +188,39 @@ export const BrandHero = ({
   subtitle,
   image = images.heroSamosa,
   compact = false,
-}) => (
-  <View style={[styles.hero, compact && styles.heroCompact]}>
-    <View style={styles.heroText}>
+}) => {
+  const { width } = useWindowDimensions();
+  const isPhone = width < 430;
+
+  return (
+  <View style={[styles.hero, compact && styles.heroCompact, isPhone && styles.heroPhone]}>
+    <View style={[styles.heroText, isPhone && styles.heroTextPhone]}>
       <Image source={imageSource(images.logo)} style={styles.logo} resizeMode="contain" />
       {!!eyebrow && <Text style={styles.eyebrow}>{eyebrow}</Text>}
-      <Text style={styles.heroTitle}>{title}</Text>
-      {!!subtitle && <Text style={styles.heroSubtitle}>{subtitle}</Text>}
+      <Text style={[styles.heroTitle, isPhone && styles.heroTitlePhone]}>{title}</Text>
+      {!!subtitle && <Text style={[styles.heroSubtitle, isPhone && styles.heroSubtitlePhone]}>{subtitle}</Text>}
     </View>
-    <ImageBackground source={imageSource(image)} style={styles.heroImage} imageStyle={styles.heroImageInner}>
+    <ImageBackground
+      source={imageSource(image)}
+      style={[styles.heroImage, isPhone && styles.heroImagePhone]}
+      imageStyle={styles.heroImageInner}
+    >
       <View style={styles.heroImageShade} />
     </ImageBackground>
   </View>
-);
+  );
+};
 
-export const SectionTitle = ({ title, action }) => (
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-    {!!action && <Text style={styles.sectionAction}>{action}</Text>}
-  </View>
-);
+export const SectionTitle = ({ title, action }) => {
+  const { palette } = useThemeMode();
+
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, { color: palette.ink }]}>{title}</Text>
+      {!!action && <Text style={[styles.sectionAction, { color: palette.red }]}>{action}</Text>}
+    </View>
+  );
+};
 
 export const MetricGrid = ({ metrics }) => (
   <View style={styles.metricGrid}>
@@ -211,15 +232,19 @@ export const MetricGrid = ({ metrics }) => (
   </View>
 );
 
-export const MetricCard = ({ label, value, icon = 'chart-box', tone = colors.red }) => (
-  <View style={styles.metricCard}>
+export const MetricCard = ({ label, value, icon = 'chart-box', tone = colors.red }) => {
+  const { palette } = useThemeMode();
+
+  return (
+  <View style={[styles.metricCard, { backgroundColor: palette.white, borderColor: palette.border }]}>
     <View style={[styles.metricIcon, { backgroundColor: `${tone}1A` }]}>
       <MaterialCommunityIcons name={icon} size={20} color={tone} />
     </View>
-    <Text style={styles.metricValue}>{value}</Text>
-    <Text style={styles.metricLabel}>{label}</Text>
+    <Text style={[styles.metricValue, { color: palette.ink }]}>{value}</Text>
+    <Text style={[styles.metricLabel, { color: palette.muted }]}>{label}</Text>
   </View>
-);
+  );
+};
 
 export const StatusPill = ({ status }) => {
   const tone = statusColors[status] || colors.ink;
@@ -247,37 +272,45 @@ export const FoodCard = ({ item, onPress, embedded = false }) => (
 );
 
 export const InfoCard = ({ title, subtitle, right, icon = 'receipt-text-outline', image, onPress, status }) => {
+  const { palette } = useThemeMode();
   const content = (
     <>
       {image ? (
-        <Image source={imageSource(image)} style={styles.infoImage} />
+        <Image source={imageSource(image)} style={[styles.infoImage, { backgroundColor: palette.surface }]} />
       ) : (
-        <View style={styles.infoIcon}>
-          <MaterialCommunityIcons name={icon} size={22} color={colors.red} />
+        <View style={[styles.infoIcon, { backgroundColor: palette.surface }]}>
+          <MaterialCommunityIcons name={icon} size={22} color={palette.red} />
         </View>
       )}
       <View style={styles.infoMain}>
-        <Text style={styles.infoTitle}>{title}</Text>
-        {!!subtitle && <Text style={styles.infoSubtitle}>{subtitle}</Text>}
+        <Text style={[styles.infoTitle, { color: palette.ink }]}>{title}</Text>
+        {!!subtitle && <Text style={[styles.infoSubtitle, { color: palette.muted }]}>{subtitle}</Text>}
         {!!status && (
           <View style={styles.infoPillWrap}>
             <StatusPill status={status} />
           </View>
         )}
       </View>
-      {!!right && <Text style={styles.infoRight}>{right}</Text>}
+      {!!right && <Text style={[styles.infoRight, { color: palette.ink }]}>{right}</Text>}
     </>
   );
 
   if (onPress) {
     return (
-      <Pressable style={({ pressed }) => [styles.infoCard, pressed && styles.pressed]} onPress={onPress}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.infoCard,
+          { backgroundColor: palette.white, borderColor: palette.border },
+          pressed && styles.pressed,
+        ]}
+        onPress={onPress}
+      >
         {content}
       </Pressable>
     );
   }
 
-  return <View style={styles.infoCard}>{content}</View>;
+  return <View style={[styles.infoCard, { backgroundColor: palette.white, borderColor: palette.border }]}>{content}</View>;
 };
 
 export const PrimaryButton = ({
@@ -289,6 +322,7 @@ export const PrimaryButton = ({
   loading = false,
   loadingLabel = 'Loading...',
 }) => {
+  const { palette } = useThemeMode();
   const [internalLoading, setInternalLoading] = useState(false);
   const isMountedRef = useRef(true);
   const isBusy = loading || internalLoading;
@@ -329,11 +363,11 @@ export const PrimaryButton = ({
       onPress={handlePress}
     >
       {isBusy ? (
-        <ActivityIndicator color={colors.onBrand} />
+        <ActivityIndicator color={palette.onBrand} />
       ) : (
-        <MaterialCommunityIcons name={icon} size={20} color={colors.onBrand} />
+        <MaterialCommunityIcons name={icon} size={20} color={palette.onBrand} />
       )}
-      <Text style={styles.primaryButtonText}>{isBusy ? loadingLabel : label}</Text>
+      <Text style={[styles.primaryButtonText, { color: palette.onBrand }]}>{isBusy ? loadingLabel : label}</Text>
     </Pressable>
   );
 };
@@ -345,9 +379,11 @@ export const ProgressBar = ({ value, color = colors.red }) => (
 );
 
 export const DataState = ({ isLoading, error, empty, children }) => {
+  const { palette } = useThemeMode();
+
   if (isLoading) {
     return (
-      <View style={styles.stateBox}>
+      <View style={[styles.stateBox, { backgroundColor: palette.white, borderColor: palette.border }]}>
         <SamosaLoader compact label="Loading fresh data..." />
       </View>
     );
@@ -355,18 +391,18 @@ export const DataState = ({ isLoading, error, empty, children }) => {
 
   if (error) {
     return (
-      <View style={styles.stateBox}>
-        <MaterialCommunityIcons name="alert-circle-outline" size={22} color={colors.red} />
-        <Text style={styles.stateText}>{error}</Text>
+      <View style={[styles.stateBox, { backgroundColor: palette.white, borderColor: palette.border }]}>
+        <MaterialCommunityIcons name="alert-circle-outline" size={22} color={palette.red} />
+        <Text style={[styles.stateText, { color: palette.muted }]}>{error}</Text>
       </View>
     );
   }
 
   if (empty) {
     return (
-      <View style={styles.stateBox}>
-        <MaterialCommunityIcons name="database-search" size={22} color={colors.amber} />
-        <Text style={styles.stateText}>No records found in database.</Text>
+      <View style={[styles.stateBox, { backgroundColor: palette.white, borderColor: palette.border }]}>
+        <MaterialCommunityIcons name="database-search" size={22} color={palette.amber} />
+        <Text style={[styles.stateText, { color: palette.muted }]}>No records found in database.</Text>
       </View>
     );
   }
@@ -480,11 +516,18 @@ const styles = StyleSheet.create({
   heroCompact: {
     minHeight: 176,
   },
+  heroPhone: {
+    minHeight: 236,
+  },
   heroText: {
     padding: 20,
     position: 'relative',
     zIndex: 2,
     maxWidth: 420,
+  },
+  heroTextPhone: {
+    maxWidth: '62%',
+    padding: 16,
   },
   logo: {
     width: 112,
@@ -505,6 +548,10 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     lineHeight: 34,
   },
+  heroTitlePhone: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
   heroSubtitle: {
     color: '#FFFFFFD9',
     fontSize: 15,
@@ -512,12 +559,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
     maxWidth: 360,
   },
+  heroSubtitlePhone: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
   heroImage: {
     bottom: 0,
     height: 142,
     position: 'absolute',
     right: 0,
     width: 210,
+  },
+  heroImagePhone: {
+    height: '58%',
+    width: '44%',
   },
   heroImageInner: {
     opacity: 0.88,

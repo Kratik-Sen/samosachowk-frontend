@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import { AppScreen, DataState, InfoCard, PrimaryButton, SectionTitle } from '../../components/SamosaUI';
@@ -42,13 +42,13 @@ const displayStoreName = (storeName, ownerName) =>
   isDefaultOutletName(storeName, ownerName) ? '' : displayProfileValue(storeName);
 
 const ProfileScreen = ({ completionOnly = false }) => {
-  const { user, logout, updateUser } = useAuth();
+  const { user, updateUser } = useAuth();
   const vendorProfile = useApiResource('/vendors/profile', null, { enabled: user?.role === 'vendor' });
   const [vendorForm, setVendorForm] = useState(emptyVendorForm);
   const [profileMessage, setProfileMessage] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [history, setHistory] = useState([]);
+  const [historySearch, setHistorySearch] = useState('');
   const [historyPage, setHistoryPage] = useState(1);
   const [hasMoreHistory, setHasMoreHistory] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
@@ -61,6 +61,28 @@ const ProfileScreen = ({ completionOnly = false }) => {
   const canDownloadInvoices = ['vendor', 'sales', 'admin'].includes(user?.role);
   const isVendor = user?.role === 'vendor';
   const isProfileComplete = Boolean(vendorProfile.data?.profile_complete);
+  const filteredHistory = useMemo(() => {
+    const query = historySearch.trim().toLowerCase();
+
+    if (!query) {
+      return history;
+    }
+
+    return history.filter((order) => {
+      const haystack = [
+        getOrderShortId(order),
+        order.customer_name,
+        order.status,
+        formatOrderDate(order.updatedAt),
+        summarizeOrderItems(order),
+        formatMoney(order.final_amount),
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [history, historySearch]);
 
   useEffect(() => () => {
     isMountedRef.current = false;
@@ -138,21 +160,6 @@ const ProfileScreen = ({ completionOnly = false }) => {
   useEffect(() => {
     loadOrderHistory(1);
   }, [loadOrderHistory]);
-
-  const handleLogout = async () => {
-    if (isLoggingOut) {
-      return;
-    }
-
-    try {
-      setIsLoggingOut(true);
-      await logout();
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoggingOut(false);
-      }
-    }
-  };
 
   const downloadInvoice = async (order) => {
     if (!canDownloadInvoices || invoiceBusyId) {
@@ -342,13 +349,21 @@ const ProfileScreen = ({ completionOnly = false }) => {
 
         {!completionOnly && <View style={styles.historySection}>
           <SectionTitle title="Order History" action="Last 20 days" />
+          <TextInput
+            value={historySearch}
+            onChangeText={setHistorySearch}
+            placeholder="Search delivered orders"
+            autoCapitalize="none"
+            style={styles.searchInput}
+            placeholderTextColor="#8A8A8A"
+          />
           {canDownloadInvoices && !!invoiceMessage && <Text style={styles.historyMessage}>{invoiceMessage}</Text>}
           <DataState
             isLoading={isHistoryLoading && !history.length}
             error={!history.length ? historyError : ''}
-            empty={!history.length}
+            empty={!filteredHistory.length}
           >
-            {history.map((order) => (
+            {filteredHistory.map((order) => (
               <View key={order._id} style={styles.historyOrderBlock}>
                 <InfoCard
                   title={`${getOrderShortId(order)} - ${order.customer_name}`}
@@ -388,15 +403,6 @@ const ProfileScreen = ({ completionOnly = false }) => {
             />
           )}
         </View>}
-
-        <Pressable
-          disabled={isLoggingOut}
-          style={({ pressed }) => [styles.button, pressed && styles.pressed, isLoggingOut && styles.disabled]}
-          onPress={handleLogout}
-        >
-          {isLoggingOut && <ActivityIndicator color={colors.onBrand} />}
-          <Text style={styles.buttonText}>{isLoggingOut ? 'Loading...' : 'Logout'}</Text>
-        </Pressable>
       </View>
     </AppScreen>
   );
@@ -488,6 +494,18 @@ const styles = StyleSheet.create({
   historySection: {
     marginTop: 24,
   },
+  searchInput: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
   historyError: {
     color: colors.redDark,
     fontSize: 13,
@@ -533,22 +551,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 16,
     marginTop: 4,
-  },
-  button: {
-    alignItems: 'center',
-    backgroundColor: colors.red,
-    borderRadius: 8,
-    flexDirection: 'row',
-    gap: 8,
-    minHeight: 48,
-    justifyContent: 'center',
-    marginTop: 24,
-    ...shadows.soft,
-  },
-  buttonText: {
-    color: colors.onBrand,
-    fontSize: 16,
-    fontWeight: '700',
   },
   pressed: {
     opacity: 0.82,

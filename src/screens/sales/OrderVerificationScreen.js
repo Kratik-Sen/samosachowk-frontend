@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import {
@@ -16,6 +16,7 @@ import { colors, formatMoney, images } from '../../theme/brand';
 import { useApiResource } from '../../hooks/useApiResource';
 import { downloadOrderInvoice } from '../../utils/invoice';
 import { getOrderImage } from '../../utils/orderDisplay';
+import { useRealtimeEvent } from '../../context/RealtimeContext';
 
 const summarizeItems = (order) =>
   (order.items || []).map((item) => `${item.name} x ${item.quantity}`).join(', ');
@@ -23,20 +24,68 @@ const summarizeItems = (order) =>
 const summarizeOrder = (order) =>
   `${order.order_type === 'Bulk' ? 'Bulk - ' : ''}${summarizeItems(order)}`;
 
+const getOrderLabel = (payload = {}) =>
+  payload.customer_name || (payload.orderId ? `order ${payload.orderId.slice(-6).toUpperCase()}` : 'this order');
+
 const OrderVerificationScreen = () => {
   const orders = useApiResource('/orders?status=Pending,Ready,Out%20for%20Delivery', []);
   const deliveryBoys = useApiResource('/sales/delivery-boys', []);
   const pendingOrders = (orders.data || []).filter((order) => order.status === 'Pending');
-  const readyOrders = (orders.data || []).filter((order) => order.status === 'Ready');
-  const dispatchOrders = (orders.data || []).filter((order) => order.status === 'Out for Delivery');
+  const readyOrders = (orders.data || []).filter(
+    (order) => order.status === 'Ready' && order.delivery?.status !== 'Assigned'
+  );
+  const dispatchOrders = (orders.data || []).filter(
+    (order) =>
+      order.status === 'Out for Delivery' &&
+      ['Picked Up', 'In Transit'].includes(order.delivery?.status)
+  );
   const [selectedDeliveryByOrder, setSelectedDeliveryByOrder] = useState({});
   const [busyId, setBusyId] = useState('');
   const [invoiceBusyId, setInvoiceBusyId] = useState('');
-  const [message, setMessage] = useState('');
+  const [pageMessage, setPageMessage] = useState('');
+  const [orderMessagesById, setOrderMessagesById] = useState({});
 
   const refresh = async () => {
     await Promise.all([orders.refetch(), deliveryBoys.refetch()]);
   };
+
+  const setOrderMessage = (orderId, nextMessage) => {
+    if (!orderId) {
+      setPageMessage(nextMessage);
+      return;
+    }
+
+    setOrderMessagesById((current) => ({
+      ...current,
+      [orderId]: nextMessage,
+    }));
+  };
+
+  const handleDeliveryStatus = useCallback(
+    (payload = {}) => {
+      const deliveryBoyName = payload.delivery_boy_name || 'Delivery boy';
+      const orderLabel = getOrderLabel(payload);
+
+      if (payload.status === 'Picked Up') {
+        setOrderMessage(payload.orderId, `${deliveryBoyName} accepted pickup for ${orderLabel}. Vendor can track this order now.`);
+        refresh();
+        return;
+      }
+
+      if (payload.status !== 'Rejected') {
+        return;
+      }
+
+      const rejectionMessage = `${deliveryBoyName} rejected the assigned order for ${orderLabel}.`;
+
+      setOrderMessage(payload.orderId, rejectionMessage);
+      Alert.alert('Delivery boy rejected order', rejectionMessage);
+      refresh();
+    },
+    [orders.refetch, deliveryBoys.refetch]
+  );
+
+  useRealtimeEvent('delivery:status', handleDeliveryStatus);
 
   const passToProduction = async (orderId) => {
     if (busyId) {
@@ -45,14 +94,14 @@ const OrderVerificationScreen = () => {
 
     try {
       setBusyId(orderId);
-      setMessage('');
+      setPageMessage('');
       await axios.put(`${API_URL}/orders/${orderId}/verify`, {
         note: 'Sales verified payment and quantities.',
       });
       await refresh();
-      setMessage('Order sent to production.');
+      setPageMessage('Order sent to production.');
     } catch (error) {
-      setMessage(error.response?.data?.message || 'Unable to send order to production');
+      setPageMessage(error.response?.data?.message || 'Unable to send order to production');
     } finally {
       setBusyId('');
     }
@@ -64,23 +113,27 @@ const OrderVerificationScreen = () => {
     }
 
     const deliveryBoyId = selectedDeliveryByOrder[orderId];
+    const selectedDeliveryBoy = (deliveryBoys.data || []).find((boy) => boy._id === deliveryBoyId);
 
     if (!deliveryBoyId) {
-      setMessage('Select an active delivery boy first.');
+      setOrderMessage(orderId, 'Select an active delivery boy first.');
       return;
     }
 
     try {
       setBusyId(orderId);
-      setMessage('');
+      setOrderMessage(orderId, '');
       await axios.put(`${API_URL}/orders/${orderId}/assign-delivery`, {
         delivery_boy_id: deliveryBoyId,
         notes: 'Assigned by sales after production completion.',
       });
       await refresh();
-      setMessage('Delivery boy assigned. Vendor can track this order now.');
+      setOrderMessage(
+        orderId,
+        `Delivery request sent${selectedDeliveryBoy?.name ? ` to ${selectedDeliveryBoy.name}` : ''}. Waiting for acceptance.`
+      );
     } catch (error) {
-      setMessage(error.response?.data?.message || 'Unable to assign delivery boy');
+      setOrderMessage(orderId, error.response?.data?.message || 'Unable to assign delivery boy');
     } finally {
       setBusyId('');
     }
@@ -94,9 +147,9 @@ const OrderVerificationScreen = () => {
     try {
       setInvoiceBusyId(order._id);
       const result = await downloadOrderInvoice(order);
-      setMessage(result);
+      setPageMessage(result);
     } catch (error) {
-      setMessage(error.message || 'Unable to download invoice.');
+      setPageMessage(error.message || 'Unable to download invoice.');
     } finally {
       setInvoiceBusyId('');
     }
@@ -118,6 +171,64 @@ const OrderVerificationScreen = () => {
     </Pressable>
   );
 
+  const renderDeliveryAssignmentBox = (order) => {
+    const isOrderBusy = busyId === order._id;
+    const isAnyBusy = Boolean(busyId);
+    const orderMessage = orderMessagesById[order._id];
+
+    return (
+      <View style={styles.assignmentBox}>
+        <Text style={styles.assignmentLabel}>Available delivery boys</Text>
+        <View style={styles.deliveryRow}>
+          {(deliveryBoys.data || []).length ? (deliveryBoys.data || []).map((boy) => {
+            const isSelected = selectedDeliveryByOrder[order._id] === boy._id;
+
+            return (
+              <Pressable
+                key={boy._id}
+                disabled={isAnyBusy}
+                style={[
+                  styles.deliveryChip,
+                  isSelected && styles.deliveryChipActive,
+                  isAnyBusy && styles.disabled,
+                ]}
+                onPress={() =>
+                  setSelectedDeliveryByOrder((current) => ({
+                    ...current,
+                    [order._id]: boy._id,
+                  }))
+                }
+              >
+                <Text style={[styles.deliveryText, isSelected && styles.deliveryTextActive]}>
+                  {boy.name}
+                </Text>
+              </Pressable>
+            );
+          }) : (
+            <Text style={styles.deliveryEmpty}>No free delivery boy available right now.</Text>
+          )}
+        </View>
+        {!!orderMessage && <Text style={styles.assignmentMessage}>{orderMessage}</Text>}
+        <Pressable
+          disabled={isAnyBusy}
+          style={({ pressed }) => [
+            styles.assignButton,
+            pressed && styles.pressed,
+            isAnyBusy && styles.disabled,
+          ]}
+          onPress={() => assignDelivery(order._id)}
+        >
+          {isOrderBusy ? (
+            <ActivityIndicator color={colors.onBrand} size="small" />
+          ) : (
+            <MaterialCommunityIcons name="truck-delivery-outline" size={20} color={colors.onBrand} />
+          )}
+          <Text style={styles.assignButtonText}>{isOrderBusy ? 'Assigning...' : 'Assign Delivery Boy'}</Text>
+        </Pressable>
+      </View>
+    );
+  };
+
   return (
     <AppScreen>
       <BrandHero
@@ -135,8 +246,6 @@ const OrderVerificationScreen = () => {
           { label: 'Delivery boys', value: `${deliveryBoys.data?.length || 0}`, icon: 'moped', tone: colors.blue },
         ]}
       />
-
-      {!!message && <Text style={styles.message}>{message}</Text>}
 
       <SectionTitle title="New Order Requests" action="Pass to production" />
       <DataState isLoading={orders.isLoading} error={orders.error} empty={!pendingOrders.length}>
@@ -162,6 +271,7 @@ const OrderVerificationScreen = () => {
           </View>
         ))}
       </DataState>
+      {!!pageMessage && <Text style={styles.message}>{pageMessage}</Text>}
 
       <SectionTitle title="Ready From Production" action="Assign delivery" />
       <DataState
@@ -170,7 +280,7 @@ const OrderVerificationScreen = () => {
         empty={!readyOrders.length}
       >
         {readyOrders.map((order) => (
-          <View key={order._id} style={styles.orderBlock}>
+          <View key={order._id} style={[styles.orderBlock, styles.dispatchOrderBox]}>
             <InfoCard
               title={`${order._id?.slice(-6).toUpperCase()} - ${order.customer_name}`}
               subtitle={`${summarizeOrder(order)} - ${order.delivery_address?.location || 'Vendor outlet'}`}
@@ -180,40 +290,7 @@ const OrderVerificationScreen = () => {
             />
             {!!order.bulk_note && <Text style={styles.vendorMessage}>vendor message :- {order.bulk_note}</Text>}
             {renderInvoiceButton(order)}
-            <View style={styles.deliveryRow}>
-              {(deliveryBoys.data || []).length ? (deliveryBoys.data || []).map((boy) => {
-                const isSelected = selectedDeliveryByOrder[order._id] === boy._id;
-
-                return (
-                  <Pressable
-                    key={boy._id}
-                    disabled={Boolean(busyId)}
-                    style={[styles.deliveryChip, isSelected && styles.deliveryChipActive, Boolean(busyId) && styles.disabled]}
-                    onPress={() =>
-                      setSelectedDeliveryByOrder((current) => ({
-                        ...current,
-                        [order._id]: boy._id,
-                      }))
-                    }
-                  >
-                    <Text style={[styles.deliveryText, isSelected && styles.deliveryTextActive]}>
-                      {boy.name}
-                    </Text>
-                  </Pressable>
-                );
-              }) : (
-                <Text style={styles.deliveryEmpty}>No free delivery boy available right now.</Text>
-              )}
-            </View>
-            <PrimaryButton
-              label="Assign Delivery Boy"
-              icon="truck-delivery-outline"
-              onPress={() => assignDelivery(order._id)}
-              tone={colors.black}
-              disabled={Boolean(busyId)}
-              loading={busyId === order._id}
-              loadingLabel="Assigning..."
-            />
+            {renderDeliveryAssignmentBox(order)}
           </View>
         ))}
       </DataState>
@@ -240,11 +317,36 @@ const styles = StyleSheet.create({
   orderBlock: {
     marginBottom: 14,
   },
+  dispatchOrderBox: {
+    borderColor: '#33ffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 10,
+  },
   deliveryRow: {
     flexDirection: 'column',
     gap: 8,
-    marginBottom: 10,
+  },
+  assignmentBox: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
     marginTop: 4,
+    padding: 12,
+  },
+  assignmentMessage: {
+    color: colors.redDark,
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  assignmentLabel: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '900',
   },
   invoiceButton: {
     alignItems: 'center',
@@ -302,6 +404,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     paddingVertical: 8,
   },
+  assignButton: {
+    alignItems: 'center',
+    backgroundColor: colors.black,
+    borderColor: colors.red,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: 14,
+  },
+  assignButtonText: {
+    color: colors.onBrand,
+    fontSize: 15,
+    fontWeight: '900',
+  },
   message: {
     color: colors.redDark,
     fontSize: 13,
@@ -311,6 +430,9 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.55,
+  },
+  pressed: {
+    opacity: 0.84,
   },
 });
 

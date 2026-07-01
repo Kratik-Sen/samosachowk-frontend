@@ -72,7 +72,7 @@ const AppShell = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safeRoot, { backgroundColor: palette.appBg }]} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView style={[styles.safeRoot, { backgroundColor: palette.appBg }]} edges={['top', 'bottom', 'left', 'right']}>
       <NavigationContainer theme={navigationTheme}>
         <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={palette.appBg} />
         <AppErrorBoundary palette={palette}>
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   authThemeToggle: {
     position: 'absolute',
     right: 14,
-    top: 14,
+    top: 8,
   },
   errorScreen: {
     alignItems: 'center',

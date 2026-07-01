@@ -10,7 +10,6 @@ import ProfileScreen from '../screens/vendor/ProfileScreen';
 import ContactScreen from '../screens/ContactScreen';
 import { useAuth } from '../context/AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
-import { useRealtimeActionSound } from '../hooks/useRealtimeNotificationSound';
 import { getPanelTabScreenOptions } from './tabBarTheme';
 
 const Tab = createBottomTabNavigator();
@@ -28,15 +27,6 @@ const VendorNavigator = () => {
   const mustCompleteProfile =
     user?.vendor_profile_complete === false ||
     (user?.vendor_profile_complete !== true && profile.data?.profile_complete === false);
-
-  useRealtimeActionSound({
-    actions: ['verified', 'production-started', 'ready', 'delivery-assigned', 'status-updated'],
-    entity: 'order',
-    sound: 'dot',
-  });
-  useRealtimeActionSound({ actions: ['accepted', 'delivered'], entity: 'delivery', sound: 'delivery' });
-  useRealtimeActionSound({ actions: ['earned'], entity: 'reward', sound: 'dot' });
-  useRealtimeActionSound({ actions: ['redeem-verified', 'redeem-rejected'], entity: 'reward-redemption', sound: 'dot' });
 
   return (
     <Tab.Navigator

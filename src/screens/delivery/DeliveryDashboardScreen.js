@@ -109,6 +109,10 @@ const DeliveryDashboardScreen = () => {
   };
 
   const isAvailable = availability.data?.availability_status === 'active';
+  const hasAcceptedRun = (deliveries.data || []).some((delivery) =>
+    ['Picked Up', 'In Transit'].includes(delivery.status)
+  );
+  const availabilityBlocked = isAvailable && hasAcceptedRun;
 
   return (
     <AppScreen>
@@ -128,13 +132,22 @@ const DeliveryDashboardScreen = () => {
           </Text>
         </View>
         <Pressable
-          disabled={isAvailabilitySaving}
-          style={[styles.toggle, isAvailable && styles.toggleActive, isAvailabilitySaving && styles.buttonDisabled]}
+          disabled={isAvailabilitySaving || availabilityBlocked}
+          style={[
+            styles.toggle,
+            isAvailable && styles.toggleActive,
+            (isAvailabilitySaving || availabilityBlocked) && styles.buttonDisabled,
+          ]}
           onPress={toggleAvailability}
         >
           <View style={[styles.toggleKnob, isAvailable && styles.toggleKnobActive]} />
         </Pressable>
       </View>
+      {availabilityBlocked && (
+        <Text style={styles.availabilityBlocked}>
+          you can not inactivate until you delivered your assign order
+        </Text>
+      )}
 
       {!!message && <Text style={styles.message}>{message}</Text>}
 
@@ -209,9 +222,6 @@ const DeliveryDashboardScreen = () => {
               loadingLabel="Rejecting..."
               disabled={Boolean(busyAction)}
             />
-            <Pressable style={styles.modalCancel} onPress={closePrompt}>
-              <Text style={styles.modalCancelText}>Later</Text>
-            </Pressable>
           </View>
         </View>
       </Modal>
@@ -300,6 +310,13 @@ const styles = StyleSheet.create({
     width: '100%',
     ...shadows.card,
   },
+  availabilityBlocked: {
+    color: colors.redDark,
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
   modalTitle: {
     color: colors.ink,
     fontSize: 20,
@@ -325,16 +342,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     marginBottom: 14,
-  },
-  modalCancel: {
-    alignItems: 'center',
-    marginTop: 12,
-    paddingVertical: 8,
-  },
-  modalCancelText: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: '900',
   },
 });
 

@@ -94,6 +94,27 @@ const base64ToBytes = (base64) => {
   return bytes;
 };
 
+const bytesToBase64 = (bytes) => {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let output = '';
+
+  for (let index = 0; index < bytes.length; index += 3) {
+    const first = bytes[index];
+    const second = bytes[index + 1];
+    const third = bytes[index + 2];
+    const hasSecond = index + 1 < bytes.length;
+    const hasThird = index + 2 < bytes.length;
+    const triplet = (first << 16) | ((second || 0) << 8) | (third || 0);
+
+    output += alphabet[(triplet >> 18) & 0x3f];
+    output += alphabet[(triplet >> 12) & 0x3f];
+    output += hasSecond ? alphabet[(triplet >> 6) & 0x3f] : '=';
+    output += hasThird ? alphabet[triplet & 0x3f] : '=';
+  }
+
+  return output;
+};
+
 const loadInvoiceImage = async (order) => {
   const imageUrl = getInvoiceDishImage(order);
 
@@ -244,6 +265,7 @@ const buildInvoiceShareText = (order) =>
 
 export const downloadOrderInvoice = async (order) => {
   const fileName = getInvoiceFileName(order);
+  const pdfBytes = buildInvoicePdf(order);
 
   if (Platform.OS === 'web' && typeof document !== 'undefined') {
     const invoiceImage = await loadInvoiceImage(order);
@@ -259,10 +281,38 @@ export const downloadOrderInvoice = async (order) => {
     return `Invoice downloaded: ${fileName}`;
   }
 
-  await Share.share({
-    title: fileName,
-    message: buildInvoiceShareText(order),
-  });
+  try {
+    const FileSystem = await import('expo-file-system/legacy');
+    const Sharing = await import('expo-sharing');
+    const directory = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+    const fileUri = `${directory}${fileName}`;
 
-  return 'Invoice details shared. PDF download is available from the web panel.';
+    await FileSystem.writeAsStringAsync(fileUri, bytesToBase64(pdfBytes), {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'application/pdf',
+        dialogTitle: fileName,
+        UTI: 'com.adobe.pdf',
+      });
+      return `Invoice PDF ready: ${fileName}`;
+    }
+
+    await Share.share({
+      title: fileName,
+      url: fileUri,
+      message: fileUri,
+    });
+
+    return `Invoice PDF saved: ${fileName}`;
+  } catch (error) {
+    await Share.share({
+      title: fileName,
+      message: buildInvoiceShareText(order),
+    });
+  }
+
+  return 'Invoice PDF could not be opened, so invoice details were shared instead.';
 };
